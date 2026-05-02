@@ -1,216 +1,197 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Frog Pinball</title>
-
-<style>
-  body {
-    margin: 0;
-    overflow: hidden;
-  }
-  canvas {
-    background: #d0f0c0;
-    display: block;
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Froggy Pinball</title>
+    <style>
+        body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
+        canvas { background: #87ceeb; border: 8px solid #27ae60; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 100%; max-height: 90vh; }
+        #ui { position: absolute; top: 20px; color: white; text-align: center; pointer-events: none; }
+    </style>
 </head>
-
 <body>
-<canvas id="game"></canvas>
+    <div id="ui">
+        <h1 style="margin:0">Froggy Pinball</h1>
+        <p>画面左右をタップでフリッパー操作 / スペースキー</p>
+        <div id="score">Score: 0</div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
 
-<script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
 
-let ball;
-let flipper;
+        canvas.width = 400;
+        canvas.height = 600;
 
-const gravity = 0.3;
-const flipperPower = -12;
-const wallThickness = 20;
-const gapSize = 24; // ボール直径＋少し余裕
+        // ゲーム設定
+        const gravity = 0.25;
+        let score = 0;
 
-// 初期化
-function init() {
-  resize();
+        // ボール（蓮の葉の上を跳ねるしずくのイメージ）
+        const ball = {
+            x: 370, y: 500, vx: 0, vy: 0, radius: 10, color: '#ecf0f1'
+        };
 
-  ball = {
-    x: canvas.width / 2,
-    y: 100,
-    vx: 2,
-    vy: 0,
-    r: 10
-  };
+        // フリッパー
+        class Flipper {
+            constructor(x, y, length, angle, side) {
+                this.x = x; this.y = y; this.length = length;
+                this.baseAngle = angle; this.angle = angle;
+                this.side = side; // -1: left, 1: right
+                this.targetAngle = angle;
+            }
+            update() {
+                this.angle += (this.targetAngle - this.angle) * 0.5;
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+                ctx.fillStyle = '#27ae60'; // カエルの足の色
+                ctx.beginPath();
+                ctx.roundRect(0, -5, this.length * this.side, 10, 5);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
 
-  flipper = {
-    x: canvas.width / 2,
-    baseY: canvas.height - 80,
-    upY: canvas.height - 140,
-    y: canvas.height - 80,
-    width: 120,
-    height: 15,
-    active: false
-  };
-}
+        const leftFlipper = new Flipper(100, 550, 80, 0.5, 1);
+        const rightFlipper = new Flipper(300, 550, 80, -0.5, -1);
 
-// リサイズ
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
+        // バンパー（カエルの顔）
+        const bumpers = [
+            { x: 100, y: 150, r: 35 },
+            { x: 300, y: 150, r: 35 },
+            { x: 200, y: 300, r: 45 }
+        ];
 
-window.addEventListener("resize", () => {
-  resize();
-  init();
-});
+        function drawFrogBumper(b) {
+            // 顔
+            ctx.fillStyle = '#2ecc71';
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+            ctx.fill();
+            // 目
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(b.x - 15, b.y - 15, 10, 0, Math.PI * 2);
+            ctx.arc(b.x + 15, b.y - 15, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(b.x - 15, b.y - 15, 5, 0, Math.PI * 2);
+            ctx.arc(b.x + 15, b.y - 15, 5, 0, Math.PI * 2);
+            ctx.fill();
+            // 口
+            ctx.strokeStyle = '#27ae60';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(b.x, b.y + 5, 15, 0.2, Math.PI - 0.2);
+            ctx.stroke();
+        }
 
-// 入力（PC）
-document.addEventListener("mousedown", () => flipper.active = true);
-document.addEventListener("mouseup", () => flipper.active = false);
+        function update() {
+            ball.vy += gravity;
+            ball.x += ball.vx;
+            ball.y += ball.vy;
 
-// スペースキー
-document.addEventListener("keydown", (e) => {
-  if (e.code === "Space") flipper.active = true;
-});
-document.addEventListener("keyup", (e) => {
-  if (e.code === "Space") flipper.active = false;
-});
+            // 壁との衝突
+            if (ball.x < ball.radius || ball.x > canvas.width - ball.radius) {
+                ball.vx *= -0.7;
+                ball.x = ball.x < ball.radius ? ball.radius : canvas.width - ball.radius;
+            }
+            if (ball.y < ball.radius) {
+                ball.vy *= -0.7;
+                ball.y = ball.radius;
+            }
 
-// スマホ
-canvas.addEventListener("touchstart", (e) => {
-  e.preventDefault();
-  flipper.active = true;
-}, { passive: false });
+            // バンパー（カエル）との衝突
+            bumpers.forEach(b => {
+                const dx = ball.x - b.x;
+                const dy = ball.y - b.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < ball.radius + b.r) {
+                    const angle = Math.atan2(dy, dx);
+                    ball.vx = Math.cos(angle) * 8;
+                    ball.vy = Math.sin(angle) * 8;
+                    score += 10;
+                    scoreEl.innerText = `Score: ${score}`;
+                }
+            });
 
-canvas.addEventListener("touchend", (e) => {
-  e.preventDefault();
-  flipper.active = false;
-});
+            // フリッパーとの衝突（簡易）
+            [leftFlipper, rightFlipper].forEach(f => {
+                f.update();
+                const dx = ball.x - f.x;
+                const dy = ball.y - f.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < f.length && Math.abs(dy) < 30 && ball.y < f.y + 20) {
+                    if (f.targetAngle !== f.baseAngle) {
+                        ball.vy = -12;
+                        ball.vx += (ball.x - f.x) * 0.1;
+                    }
+                }
+            });
 
-// 更新
-function update() {
+            // リセット（落下）
+            if (ball.y > canvas.height) {
+                ball.x = 370; ball.y = 500; ball.vx = 0; ball.vy = -15;
+                score = 0;
+                scoreEl.innerText = `Score: ${score}`;
+            }
 
-  // フリッパー上下
-  flipper.y = flipper.active ? flipper.upY : flipper.baseY;
+            draw();
+            requestAnimationFrame(update);
+        }
 
-  // ボール物理
-  ball.vy += gravity;
-  ball.x += ball.vx;
-  ball.y += ball.vy;
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 背景の蓮の葉
+            ctx.fillStyle = '#218c74';
+            ctx.beginPath();
+            ctx.ellipse(200, 580, 250, 50, 0, 0, Math.PI * 2);
+            ctx.fill();
 
-  // 左右の枠（修正）
-if (ball.x < wallThickness + ball.r) {
-  ball.x = wallThickness + ball.r;
-  ball.vx *= -1;
-}
-if (ball.x > canvas.width - wallThickness - ball.r) {
-  ball.x = canvas.width - wallThickness - ball.r;
-  ball.vx *= -1;
-}
-  // フリッパー当たり判定（改良版）
-  if (
-    ball.y + ball.r > flipper.y &&
-    ball.y - ball.r < flipper.y + flipper.height &&
-    ball.x > flipper.x - flipper.width / 2 &&
-    ball.x < flipper.x + flipper.width / 2 &&
-    ball.vy > 0
-  ) {
-    ball.vy = flipper.active ? flipperPower : -4;
-    ball.y = flipper.y - ball.r; // めり込み防止
-  }
-  // フリッパーの隙間判定
-let leftGap = flipper.x - flipper.width / 2 - gapSize;
-let rightGap = flipper.x + flipper.width / 2 + gapSize;
+            bumpers.forEach(drawFrogBumper);
+            leftFlipper.draw();
+            rightFlipper.draw();
+            
+            // ボール
+            ctx.fillStyle = ball.color;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
-// 下に落ちる条件（隙間だけ）
-if (
-  ball.y > canvas.height &&
-  (ball.x < leftGap || ball.x > rightGap)
-) {
-  // 壁扱い（跳ね返す）
-  ball.y = canvas.height - ball.r;
-  ball.vy *= -0.8;
-}
+        // 入力制御
+        const handleInput = (side, active) => {
+            if (side === 'left') leftFlipper.targetAngle = active ? -0.5 : 0.5;
+            if (side === 'right') rightFlipper.targetAngle = active ? 0.5 : -0.5;
+        };
 
-  // 落下リセット
-  if (ball.y > canvas.height) {
-    ball.x = canvas.width / 2;
-    ball.y = 100;
-    ball.vx = 2;
-    ball.vy = 0;
-  }
-  // 本当に落ちた（隙間を通過）
-if (
-  ball.y > canvas.height &&
-  ball.x >= leftGap &&
-  ball.x <= rightGap
-) {
-  ball.x = canvas.width / 2;
-  ball.y = 100;
-  ball.vx = 2;
-  ball.vy = 0;
-}
-}
+        window.addEventListener('keydown', e => {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', true);
+            if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', true);
+            if (e.code === 'Space') { handleInput('left', true); handleInput('right', true); }
+        });
+        window.addEventListener('keyup', e => {
+            handleInput('left', false); handleInput('right', false);
+        });
 
-// 描画
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+        canvas.addEventListener('touchstart', e => {
+            const touch = e.touches[0];
+            handleInput(touch.clientX < window.innerWidth / 2 ? 'left' : 'right', true);
+            e.preventDefault();
+        }, {passive: false});
+        canvas.addEventListener('touchend', () => {
+            handleInput('left', false); handleInput('right', false);
+        });
 
-  // ボール
-  ctx.beginPath();
-  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-  ctx.fillStyle = "#000";
-  ctx.fill();
-
-  // フリッパー
-  ctx.fillStyle = flipper.active ? "#ff6666" : "#333";
-  ctx.fillRect(
-    flipper.x - flipper.width / 2,
-    flipper.y,
-    flipper.width,
-    flipper.height
-  );
-  // 左壁
-ctx.fillStyle = "#444";
-ctx.fillRect(0, 0, wallThickness, canvas.height);
-
-// 右壁
-ctx.fillRect(canvas.width - wallThickness, 0, wallThickness, canvas.height);
-
-// 下壁（隙間以外）
-let leftGap = flipper.x - flipper.width / 2 - gapSize;
-let rightGap = flipper.x + flipper.width / 2 + gapSize;
-
-// 左側の床
-ctx.fillRect(
-  wallThickness,
-  canvas.height - 10,
-  leftGap - wallThickness,
-  10
-);
-
-// 右側の床
-ctx.fillRect(
-  rightGap,
-  canvas.height - 10,
-  canvas.width - rightGap - wallThickness,
-  10
-);
-}
-
-// ループ
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-
-// 実行
-init();
-loop();
-</script>
-
+        update();
+    </script>
 </body>
 </html>
