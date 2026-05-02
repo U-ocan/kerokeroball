@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Frog Pinball</title>
+
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    background: #d0f0c0;
+    display: block;
+  }
+</style>
+</head>
+
+<body>
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+// 解像度対応
+const dpr = window.devicePixelRatio || 1;
+
+function resize() {
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  flipper.x = window.innerWidth / 2;
+  flipper.y = window.innerHeight - 100;
+}
+window.addEventListener("resize", resize);
+
+// ボール
+let ball = {
+  x: 200,
+  y: 100,
+  vx: 2,
+  vy: 0,
+  r: 10
+};
+
+let gravity = 0.3;
+
+// フリッパー
+let flipper = {
+  x: 200,
+  y: 500,
+  width: 80,
+  height: 10,
+  active: false
+};
+
+// 入力（PC）
+document.addEventListener("mousedown", () => flipper.active = true);
+document.addEventListener("mouseup", () => flipper.active = false);
+
+// 入力（スマホ）
+canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  flipper.active = true;
+}, { passive: false });
+
+canvas.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  flipper.active = false;
+});
+
+// 更新
+function update() {
+  ball.vy += gravity;
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+
+  // 壁
+  if (ball.x < 0 || ball.x > window.innerWidth) ball.vx *= -1;
+  if (ball.y < 0) ball.vy *= -1;
+
+  // フリッパー
+  if (
+    ball.y + ball.r > flipper.y &&
+    ball.x > flipper.x - flipper.width / 2 &&
+    ball.x < flipper.x + flipper.width / 2
+  ) {
+    ball.vy = -8;
+  }
+
+  // 落下
+  if (ball.y > window.innerHeight) {
+    ball.x = window.innerWidth / 2;
+    ball.y = 100;
+    ball.vx = 2;
+    ball.vy = 0;
+  }
+}
+
+// 描画
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // ボール
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+  ctx.fill();
+
+  // フリッパー
+  ctx.fillRect(
+    flipper.x - flipper.width / 2,
+    flipper.y,
+    flipper.width,
+    flipper.height
+  );
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// 初期化
+resize();
+loop();
+</script>
+
+</body>
+</html>
