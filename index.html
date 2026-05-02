@@ -100,14 +100,15 @@ function update() {
   ball.x += ball.vx;
   ball.y += ball.vy;
 
-  // 壁
-  if (ball.x < ball.r || ball.x > canvas.width - ball.r) {
-    ball.vx *= -1;
-  }
-  if (ball.y < ball.r) {
-    ball.vy *= -1;
-  }
-
+  // 左右の枠（修正）
+if (ball.x < wallThickness + ball.r) {
+  ball.x = wallThickness + ball.r;
+  ball.vx *= -1;
+}
+if (ball.x > canvas.width - wallThickness - ball.r) {
+  ball.x = canvas.width - wallThickness - ball.r;
+  ball.vx *= -1;
+}
   // フリッパー当たり判定（改良版）
   if (
     ball.y + ball.r > flipper.y &&
