@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KerokeroBall - High Power</title>
+    <title>KerokeroBall - Precise Edition</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 8px solid #27ae60; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 100%; max-height: 90vh; }
@@ -13,7 +13,7 @@
 <body>
     <div id="ui">
         <h1 style="margin:0">KerokeroBall</h1>
-        <p>パワー復活！スリング角度を調整しました</p>
+        <p>重力 0.42 / 減衰 0.85 カスタム適用済み</p>
         <div id="score">Score: 0</div>
     </div>
     <canvas id="gameCanvas"></canvas>
@@ -26,7 +26,9 @@
         canvas.width = 400;
         canvas.height = 600;
 
-        const gravity = 0.3; 
+        // Uさんのカスタム設定
+        const gravity = 0.42; 
+        const decay = 0.85;   
         let score = 0;
 
         const ball = {
@@ -41,7 +43,7 @@
                 this.targetAngle = angle;
             }
             update() {
-                this.angle += (this.targetAngle - this.angle) * 0.5;
+                this.angle += (this.targetAngle - this.angle) * 0.45;
             }
             draw() {
                 ctx.save();
@@ -49,14 +51,15 @@
                 ctx.rotate(this.angle);
                 ctx.fillStyle = '#27ae60';
                 ctx.beginPath();
-                ctx.roundRect(0, -10, this.length * this.side, 20, 10);
+                ctx.roundRect(0, -12, this.length * this.side, 24, 12);
                 ctx.fill();
                 ctx.restore();
             }
         }
 
-        const leftFlipper = new Flipper(80, 540, 100, 0.5, 1);
-        const rightFlipper = new Flipper(320, 540, 100, -0.5, -1);
+        const flipY = 510;
+        const leftFlipper = new Flipper(85, flipY, 100, 0.6, 1);
+        const rightFlipper = new Flipper(315, flipY, 100, -0.6, -1);
 
         const bumpers = [
             { x: 100, y: 150, r: 35 },
@@ -64,21 +67,7 @@
             { x: 200, y: 280, r: 45 }
         ];
 
-        // 【修正】スリングショットの形状を変更（より鋭角に、内側へ誘導）
-        const slingshots = [
-            { // 左
-                p1: { x: 0, y: 380 },
-                p2: { x: 100, y: 480 }, // 先端を少し内側へ
-                p3: { x: 0, y: 480 },
-                side: 'left'
-            },
-            { // 右
-                p1: { x: 400, y: 380 },
-                p2: { x: 300, y: 480 }, // 先端を少し内側へ
-                p3: { x: 400, y: 480 },
-                side: 'right'
-            }
-        ];
+        const slingTop = flipY - 105;
 
         function drawFrogBumper(b) {
             ctx.fillStyle = '#2ecc71';
@@ -92,9 +81,8 @@
         }
 
         function resetBall() {
-            ball.x = 200;
-            ball.y = -30;
-            ball.vx = (Math.random() - 0.5) * 10;
+            ball.x = 200; ball.y = -30;
+            ball.vx = (Math.random() - 0.5) * 8;
             ball.vy = 2;
         }
 
@@ -103,64 +91,71 @@
             ball.x += ball.vx;
             ball.y += ball.vy;
 
-            if (ball.x < ball.radius) { ball.vx *= -0.8; ball.x = ball.radius; }
-            if (ball.x > canvas.width - ball.radius) { ball.vx *= -0.8; ball.x = canvas.width - ball.radius; }
-            if (ball.y < ball.radius && ball.y > -100) { ball.vy *= -0.8; ball.y = ball.radius; }
+            // 微小な空気抵抗（常時）
+            ball.vx *= 0.998;
+            ball.vy *= 0.998;
 
-            // 【修正】バンパー反発力を強化（10 -> 12）
+            // 壁の反発
+            if (ball.x < ball.radius && ball.y < slingTop) { ball.vx *= -0.7; ball.x = ball.radius; }
+            if (ball.x > canvas.width - ball.radius && ball.y < slingTop) { ball.vx *= -0.7; ball.x = canvas.width - ball.radius; }
+            if (ball.y < ball.radius && ball.y > -100) { ball.vy *= -0.7; ball.y = ball.radius; }
+
+            // バンパー判定（減衰＋最低速度保証）
             bumpers.forEach(b => {
-                const dx = ball.x - b.x;
-                const dy = ball.y - b.y;
+                const dx = ball.x - b.x; const dy = ball.y - b.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist < ball.radius + b.r) {
                     const angle = Math.atan2(dy, dx);
-                    ball.vx = Math.cos(angle) * 12;
-                    ball.vy = Math.sin(angle) * 12;
-                    score += 10;
+                    const speed = Math.sqrt(ball.vx**2 + ball.vy**2);
+                    const newSpeed = Math.max(speed * decay, 9); // 重力に合わせて最低速度を9に微増
+                    ball.vx = Math.cos(angle) * newSpeed;
+                    ball.vy = Math.sin(angle) * newSpeed;
+                    score += 10; scoreEl.innerText = `Score: ${score}`;
+                }
+            });
+
+            // スリングショット（動的計算による空中停止防止）
+            const slingshots = [{isLeft:true, x:0}, {isLeft:false, x:400}];
+            slingshots.forEach(s => {
+                if (ball.y >= slingTop && ball.y <= flipY) {
+                    const progress = (ball.y - slingTop) / (flipY - slingTop);
+                    const slopeX = s.isLeft ? (progress * 85) : 400 - (progress * 85);
+                    if (s.isLeft && ball.x - ball.radius < slopeX) {
+                        ball.vx = 10 * decay; ball.vy = -6 * decay; ball.x = slopeX + ball.radius;
+                        score += 5;
+                    } else if (!s.isLeft && ball.x + ball.radius > slopeX) {
+                        ball.vx = -10 * decay; ball.vy = -6 * decay; ball.x = slopeX - ball.radius;
+                        score += 5;
+                    }
                     scoreEl.innerText = `Score: ${score}`;
                 }
             });
 
-            // スリングショット判定
-            slingshots.forEach(s => {
-                const isLeft = s.side === 'left';
-                const wallX = isLeft ? ball.x - ball.radius : ball.x + ball.radius;
-                // 斜め辺への当たり判定を微調整（角度を意識）
-                if (ball.y > 380 && ball.y < 480) {
-                    const thresholdX = isLeft ? (ball.y - 380) + 0 : 400 - (ball.y - 380);
-                    if ((isLeft && wallX < thresholdX) || (!isLeft && wallX > thresholdX)) {
-                        ball.vx = isLeft ? 10 : -10;
-                        ball.vy = -8; // 少し弱めて、すぐ落ちてくるように
-                        score += 5;
-                        scoreEl.innerText = `Score: ${score}`;
-                    }
-                }
-            });
-
-            // 【修正】フリッパー弾き力を強化（-15 -> -18）
+            // フリッパー判定（貫通防止＋座標押し戻し）
             [leftFlipper, rightFlipper].forEach(f => {
                 f.update();
                 const dx = ball.x - f.x;
                 const dy = ball.y - f.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                
-                if (dist < f.length + ball.radius && Math.abs(dy) < 50) {
-                    if ((f.side === 1 && ball.x > f.x - 10) || (f.side === -1 && ball.x < f.x + 10)) {
-                        if (Math.abs(f.targetAngle - f.angle) > 0.02) {
-                            ball.vy = -18; 
-                            ball.vx = (ball.x - f.x) * 0.25;
-                            ball.y = f.y - 30;
-                        } else if (ball.y < f.y) {
-                            ball.vy *= -0.5;
-                            ball.y = f.y - 15;
-                        }
+                const cos = Math.cos(-f.angle);
+                const sin = Math.sin(-f.angle);
+                const rx = dx * cos - dy * sin;
+                const ry = dx * sin + dy * cos;
+
+                if (rx * f.side > -10 && rx * f.side < f.length + 10 && Math.abs(ry) < ball.radius + 15) {
+                    if (Math.abs(f.targetAngle - f.angle) > 0.02) {
+                        ball.vy = -20; // 重力強化に合わせてパワーを少しアップ
+                        ball.vx = (ball.x - f.x) * 0.35;
+                        ball.y = f.y - 45; // 押し戻しを強化
+                    } else if (ry < 0) {
+                        ball.vy *= -0.3;
+                        ball.vx *= 0.5;
+                        ball.y = f.y - 25;
                     }
                 }
             });
 
             if (ball.y > canvas.height + 100) {
-                score = 0;
-                scoreEl.innerText = `Score: ${score}`;
+                score = 0; scoreEl.innerText = `Score: ${score}`;
                 resetBall();
             }
 
@@ -171,22 +166,16 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#218c74';
-            ctx.beginPath(); ctx.ellipse(200, 590, 280, 70, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(200, 595, 280, 60, 0, 0, Math.PI * 2); ctx.fill();
 
             ctx.fillStyle = '#27ae60';
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 4;
-            slingshots.forEach(s => {
-                ctx.beginPath();
-                ctx.moveTo(s.p1.x, s.p1.y);
-                ctx.lineTo(s.p2.x, s.p2.y);
-                ctx.lineTo(s.p3.x, s.p3.y);
-                ctx.closePath();
-                ctx.fill();
-                ctx.beginPath();
-                ctx.moveTo(s.p1.x, s.p1.y);
-                ctx.lineTo(s.p2.x, s.p2.y);
-                ctx.stroke();
+            [ {p1:{x:0, y:slingTop}, p2:{x:85, y:flipY}, p3:{x:0, y:flipY}},
+              {p1:{x:400, y:slingTop}, p2:{x:315, y:flipY}, p3:{x:400, y:flipY}}
+            ].forEach(s => {
+                ctx.beginPath(); ctx.moveTo(s.p1.x, s.p1.y); ctx.lineTo(s.p2.x, s.p2.y); ctx.lineTo(s.p3.x, s.p3.y); ctx.closePath(); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(s.p1.x, s.p1.y); ctx.lineTo(s.p2.x, s.p2.y); ctx.stroke();
             });
 
             bumpers.forEach(drawFrogBumper);
@@ -194,15 +183,14 @@
             rightFlipper.draw();
             
             ctx.fillStyle = ball.color;
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = "rgba(255,255,255,0.6)";
+            ctx.shadowBlur = 15; ctx.shadowColor = "rgba(255,255,255,0.6)";
             ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2); ctx.fill();
             ctx.shadowBlur = 0;
         }
 
         const handleInput = (side, active) => {
-            if (side === 'left') leftFlipper.targetAngle = active ? -0.1 : 0.5;
-            if (side === 'right') rightFlipper.targetAngle = active ? 0.1 : -0.5;
+            if (side === 'left') leftFlipper.targetAngle = active ? -0.6 : 0.6;
+            if (side === 'right') rightFlipper.targetAngle = active ? 0.6 : -0.6;
         };
 
         window.addEventListener('keydown', e => {
