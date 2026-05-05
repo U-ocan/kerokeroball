@@ -7,7 +7,6 @@
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; margin-top: 30px; }
-        /* iPhoneの時計・ノッチを避けるために 45px に設定 */
         #ui { position: absolute; top: 45px; color: white; text-align: center; pointer-events: none; z-index: 10; width: 100%; }
     </style>
 </head>
@@ -92,8 +91,6 @@
             ball.vy = 2;
         }
 
-       // --- 物理判定ロジックの抜粋（update関数内の判定部分を差し替え） ---
-
         function update() {
             ball.vy += gravity;
             ball.x += ball.vx;
@@ -102,12 +99,10 @@
             ball.vx *= 0.995;
             ball.vy *= 0.995;
 
-            // 1. 壁・天井判定
             if (ball.x < ball.radius && ball.y < slingTop) { ball.vx *= -0.5; ball.x = ball.radius; }
             if (ball.x > canvas.width - ball.radius && ball.y < slingTop) { ball.vx *= -0.5; ball.x = canvas.width - ball.radius; }
             if (ball.y < ball.radius && ball.y > -100) { ball.vy *= -0.5; ball.y = ball.radius; }
 
-            // 2. バンパー判定
             bumpers.forEach(b => {
                 const dx = ball.x - b.x; const dy = ball.y - b.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -119,25 +114,19 @@
                 }
             });
 
-           // --- スリングショット判定ロジックの修正版 ---
-
             const slingshots = [{isLeft:true, x:0}, {isLeft:false, x:360}];
             slingshots.forEach(s => {
-                // 判定を上下に広げて境目をカバー
                 if (ball.y >= slingTop - 10 && ball.y <= flipY + 5) {
                     const progress = (ball.y - slingTop) / (flipY - slingTop);
                     const slopeX = s.isLeft ? (progress * 75) : 360 - (progress * 75);
-                    
                     if (s.isLeft && ball.x - ball.radius < slopeX) {
-                        // 【修正】真横ではなく、斜め上(vy < 0)に飛ばす力を強化
-                        ball.vx = 6 + Math.random() * 2; // 右方向
-                        ball.vy = -7 - Math.random() * 3; // 上方向への逃げ
+                        ball.vx = 6 + Math.random() * 2;
+                        ball.vy = -7 - Math.random() * 3;
                         ball.x = slopeX + ball.radius + 2; 
                         score += 5;
                     } else if (!s.isLeft && ball.x + ball.radius > slopeX) {
-                        // 【修正】左斜め上へ飛ばす
-                        ball.vx = -6 - Math.random() * 2; // 左方向
-                        ball.vy = -7 - Math.random() * 3; // 上方向への逃げ
+                        ball.vx = -6 - Math.random() * 2;
+                        ball.vy = -7 - Math.random() * 3;
                         ball.x = slopeX - ball.radius - 2;
                         score += 5;
                     }
@@ -145,7 +134,6 @@
                 }
             });
 
-            // 4. フリッパー判定（厚みと境目の重なりを強化）
             [leftFlipper, rightFlipper].forEach(f => {
                 f.update();
                 const dx = ball.x - f.x;
@@ -154,10 +142,8 @@
                 const sin = Math.sin(-f.angle);
                 const rx = dx * cos - dy * sin;
                 const ry = dx * sin + dy * cos;
-
                 const isFlipping = Math.abs(f.angle - f.prevAngle) > 0.005;
 
-                // 厚みを 15 に増やし、根元の判定 (rx * f.side > -15) を広げて境目をカバー
                 if (rx * f.side > -15 && rx * f.side < f.length + 10 && Math.abs(ry) < ball.radius + 15) {
                     if (isFlipping) {
                         const power = 19;
@@ -165,20 +151,14 @@
                         ball.vx = power * Math.sin(f.angle) * f.side;
                         ball.y = f.y - 35; 
                     } else {
-                        // 静止時の挙動
-                        ball.vx *= 0.85;
-                        ball.vy *= 0.85;
+                        ball.vx *= 0.85; ball.vy *= 0.85;
                         if (Math.abs(ball.vy) < 0.6) ball.vy = 0;
-
                         const slide = 0.48;
                         ball.vx += Math.cos(f.angle) * slide * f.side;
                         ball.vy += Math.sin(f.angle) * slide;
-
-                        // 強制押し出し（すり抜け防止）
                         const targetRy = (ry > 0 ? 1 : -1) * (ball.radius + 10);
                         const diffY = targetRy - ry;
-                        ball.x += diffY * -sin;
-                        ball.y += diffY * cos;
+                        ball.x += diffY * -sin; ball.y += diffY * cos;
                     }
                 }
             });
@@ -194,9 +174,12 @@
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 下部の楕円
             ctx.fillStyle = '#218c74';
             ctx.beginPath(); ctx.ellipse(180, 655, 250, 60, 0, 0, Math.PI * 2); ctx.fill();
 
+            // スリングショット描画
             ctx.fillStyle = '#27ae60';
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 4;
@@ -207,46 +190,24 @@
                 ctx.beginPath(); ctx.moveTo(s.p1.x, s.p1.y); ctx.lineTo(s.p2.x, s.p2.y); ctx.stroke();
             });
 
+            // バンパーとフリッパー
             bumpers.forEach(drawFrogBumper);
             leftFlipper.draw();
             rightFlipper.draw();
             
-function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            // ...（背景やフリッパーの描画はそのまま）...
-
             // --- カエルのたまごボールの描画 ---
             ctx.save();
             ctx.translate(ball.x, ball.y);
-
-            // 1. 外側のぷるぷる層（半透明の白）
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.beginPath();
-            ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
-            ctx.fill();
-
-            // 2. 外側の輪郭線（イラストに合わせる場合）
+            ctx.beginPath(); ctx.arc(0, 0, ball.radius, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = '#4a4a4a';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // 3. 中央の黒目（たまごの芯）
+            ctx.lineWidth = 2; ctx.stroke();
             ctx.fillStyle = '#333333';
-            ctx.beginPath();
-            ctx.arc(0, 0, ball.radius * 0.5, 0, Math.PI * 2);
-            ctx.fill();
-
-            // 4. ハイライト（ツヤ出し）
+            ctx.beginPath(); ctx.arc(0, 0, ball.radius * 0.5, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(-ball.radius * 0.3, -ball.radius * 0.3, ball.radius * 0.15, 0, Math.PI * 2);
-            ctx.fill();
-
+            ctx.beginPath(); ctx.arc(-ball.radius * 0.3, -ball.radius * 0.3, ball.radius * 0.15, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
-            // ----------------------------------
-
-            // ...（他の描画処理）...
-        }}
+        }
 
         const handleInput = (side, active) => {
             if (side === 'left') leftFlipper.targetAngle = active ? -0.6 : 0.6;
@@ -257,7 +218,7 @@ function draw() {
             if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', true);
             if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', true);
         });
-        window.addEventListener('keyup', e => { handleInput('left', false); handleInput('right', false); });
+        window.addEventListener('keyup', () => { handleInput('left', false); handleInput('right', false); });
 
         canvas.addEventListener('touchstart', e => {
             const touch = e.touches[0];
