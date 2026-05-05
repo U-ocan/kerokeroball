@@ -136,27 +136,49 @@
                 }
             });
 
-            [leftFlipper, rightFlipper].forEach(f => {
-                f.update();
-                const dx = ball.x - f.x;
-                const dy = ball.y - f.y;
-                const cos = Math.cos(-f.angle);
-                const sin = Math.sin(-f.angle);
-                const rx = dx * cos - dy * sin;
-                const ry = dx * sin + dy * cos;
+            // --- 修正されたフリッパー判定ロジック（update関数内を差し替え） ---
 
-                if (rx * f.side > -10 && rx * f.side < f.length + 10 && Math.abs(ry) < ball.radius + 15) {
-                    if (Math.abs(f.targetAngle - f.angle) > 0.02) {
-                        ball.vy = -20;
-                        ball.vx = (ball.x - f.x) * 0.35;
-                        ball.y = f.y - 45;
-                    } else if (ry < 0) {
-                        ball.vy *= -0.3;
-                        ball.vx *= 0.5;
-                        ball.y = f.y - 25;
-                    }
-                }
-            });
+[leftFlipper, rightFlipper].forEach(f => {
+    f.update();
+    const dx = ball.x - f.x;
+    const dy = ball.y - f.y;
+    
+    // フリッパーの角度に合わせて座標を回転
+    const cos = Math.cos(-f.angle);
+    const sin = Math.sin(-f.angle);
+    const rx = dx * cos - dy * sin;
+    const ry = dx * sin + dy * cos;
+
+    // フリッパーの当たり判定（長方形領域）
+    const fWidth = f.length;
+    const fHeight = 15; // フリッパーの厚み
+
+    if (rx * f.side > -10 && rx * f.side < fWidth + 10 && Math.abs(ry) < ball.radius + fHeight) {
+        
+        // 1. フリッパーが動いている（フリップ中）
+        if (Math.abs(f.targetAngle - f.angle) > 0.01) {
+            ball.vy = -20;
+            ball.vx = (ball.x - f.x) * 0.4;
+            ball.y = f.y - 45; // 強制的に上へ
+        } 
+        // 2. フリッパーが止まっている（斜面として機能）
+        else {
+            // ボールをフリッパーの表面に押し出す
+            const overlap = (ball.radius + fHeight/2) - Math.abs(ry);
+            if (ry > 0) ball.y += overlap; else ball.y -= overlap;
+
+            // 斜面に沿った転がり落ちを計算
+            // 角度 f.angle に応じて重力を vx, vy に分解して付与
+            const slopeAccel = 0.5; // 滑り落ちる強さ
+            ball.vx += Math.cos(f.angle) * slopeAccel * f.side;
+            ball.vy += Math.sin(f.angle) * slopeAccel;
+
+            // 速度の減衰（バウンドし続けないようにエネルギーを吸収）
+            ball.vx *= 0.95;
+            ball.vy *= 0.95;
+        }
+    }
+});
 
             if (ball.y > canvas.height + 100) {
                 score = 0; scoreEl.innerText = `Score: ${score}`;
