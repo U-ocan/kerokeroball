@@ -217,21 +217,52 @@
             ctx.restore();
         }
 
+        // --- フリッパー操作ロジック：同時押し対応版 ---
         const handleInput = (side, active) => {
-            if (side === 'left') leftFlipper.targetAngle = active ? -0.6 : 0.6;
-            if (side === 'right') rightFlipper.targetAngle = active ? 0.6 : -0.6;
+            if (side === 'left') {
+                leftFlipper.targetAngle = active ? -0.6 : 0.6;
+            }
+            if (side === 'right') {
+                rightFlipper.targetAngle = active ? 0.6 : -0.6;
+            }
         };
 
+        // キーボード操作
         window.addEventListener('keydown', e => {
             if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', true);
             if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', true);
         });
-        window.addEventListener('keyup', () => { handleInput('left', false); handleInput('right', false); });
 
+        window.addEventListener('keyup', e => {
+            // 離したキーに応じて、対応するフリッパーだけを下げる
+            if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', false);
+            if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', false);
+        });
+
+        // タッチ操作（マルチタッチ対応）
         canvas.addEventListener('touchstart', e => {
-            const touch = e.touches[0];
-            handleInput(touch.clientX < window.innerWidth / 2 ? 'left' : 'right', true);
             e.preventDefault();
+            // 新しく触れた指すべてをチェック
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                const side = touch.clientX < window.innerWidth / 2 ? 'left' : 'right';
+                handleInput(side, true);
+            }
+        }, {passive: false});
+
+        canvas.addEventListener('touchend', e => {
+            e.preventDefault();
+            // 指が離れたとき、画面のどちら側に指が残っていないかを判定
+            let leftActive = false;
+            let rightActive = false;
+            
+            for (let i = 0; i < e.touches.length; i++) {
+                if (e.touches[i].clientX < window.innerWidth / 2) leftActive = true;
+                else rightActive = true;
+            }
+            
+            if (!leftActive) handleInput('left', false);
+            if (!rightActive) handleInput('right', false);
         }, {passive: false});
         canvas.addEventListener('touchend', (e) => {
             if (e.touches.length === 0) { handleInput('left', false); handleInput('right', false); }
