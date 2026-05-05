@@ -135,14 +135,21 @@ if (plunger.isCharging) {
             if (ball.x < ball.radius) { ball.vx *= -0.5; ball.x = ball.radius; }
             if (ball.x > canvas.width - ball.radius) { ball.vx *= -0.5; ball.x = canvas.width - ball.radius; }
             if (ball.y < ball.radius) { ball.vy *= -0.5; ball.y = ball.radius; }
- // 右レーンの内壁判定（y=100より下で、レーン境界線 laneX をまたごうとしたら押し戻す）
-if (ball.y > 100) {
-    // laneX(330) から右に30pxの範囲を「壁エリア」として定義
-    if (ball.x > laneX - ball.radius && ball.x < laneX + 30) {
-        if (ball.vx < 0) { // 左に向かおうとしている場合
-            ball.vx = Math.abs(ball.vx) * 0.3; // 弱く右へ跳ね返す
-            ball.x = laneX - ball.radius; // 位置を強制補正
+// --- 右レーン隔離ロジック（完全版） ---
+// ボールがレーン内（x > laneX）にいる時の処理を独立させる
+if (ball.x > laneX - ball.radius) {
+    // 1. 出口(y=100)より下にいる間は、絶対に左(laneX)へ行かせない
+    if (ball.y > 100) {
+        if (ball.x < laneX + ball.radius) {
+            ball.x = laneX + ball.radius; // 位置を強制固定
+            if (ball.vx < 0) ball.vx = 0; // 左への速度を殺す
         }
+    }
+    
+    // 2. 底抜け防止（プランジャーより下に行かないようにする）
+    if (ball.y > plunger.minY - ball.radius) {
+        ball.y = plunger.minY - ball.radius;
+        ball.vy = 0;
     }
 }
                 
