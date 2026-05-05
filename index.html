@@ -18,7 +18,6 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // ユーザー指定[2026-05-05]に基づき、フルコードを提示します
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
@@ -63,10 +62,10 @@
         }
 
         const laneX = 330;
-        const laneTop = 150; 
+        const laneCurveStart = 120; // カーブが始まる高さ
         const plunger = {
             y: 580, minY: 580, maxY: 640, 
-            isCharging: false, k: 1.8 
+            isCharging: false, k: 2.2 // バネ定数をさらに強化
         };
         
         const flipY = 560; 
@@ -98,14 +97,16 @@
 
         function update() {
             if (plunger.isCharging) {
-                if (plunger.y < plunger.maxY) plunger.y += 2.0; 
+                if (plunger.y < plunger.maxY) plunger.y += 2.5; 
             } else {
                 if (plunger.y > plunger.minY) {
                     if (ball.x > laneX && ball.y > plunger.y - 50) {
-                        ball.vy = -((plunger.y - plunger.minY) * plunger.k + 20);
+                        // パワー計算を強化
+                        const power = (plunger.y - plunger.minY) * plunger.k + 22;
+                        ball.vy = -power;
                         ball.y = plunger.y - ball.radius - 5;
                     }
-                    plunger.y -= 30; 
+                    plunger.y -= 35; 
                 } else {
                     plunger.y = plunger.minY;
                 }
@@ -117,17 +118,25 @@
             ball.vx *= 0.995;
             ball.vy *= 0.995;
 
+            // 壁の衝突
             if (ball.x < ball.radius) { ball.vx *= -0.5; ball.x = ball.radius; }
             if (ball.x > canvas.width - ball.radius) { ball.vx *= -0.5; ball.x = canvas.width - ball.radius; }
             if (ball.y < ball.radius) { ball.vy *= -0.5; ball.y = ball.radius; }
 
+            // --- レーン上部のカーブ物理挙動 ---
             if (ball.x > laneX - ball.radius) {
-                if (ball.y > laneTop) {
-                    if (ball.x < laneX + ball.radius && ball.vx < 0) {
+                // レーン内の場合
+                if (ball.y < laneCurveStart) {
+                    // カーブ付近：左方向へ押し出す力を加える
+                    ball.vx -= 0.8;
+                } else {
+                    // 直線レーン部分
+                    if (ball.x < laneX + ball.radius && ball.vx < 0 && ball.y > laneCurveStart) {
                         ball.x = laneX + ball.radius;
                         ball.vx *= -0.2;
                     }
                 }
+                // プランジャー停止位置
                 if (ball.y > plunger.minY - ball.radius && ball.x > laneX) {
                     ball.y = plunger.minY - ball.radius;
                     ball.vy = 0; ball.vx = 0;
@@ -194,11 +203,19 @@
             ctx.fillStyle = '#218c74';
             ctx.beginPath(); ctx.ellipse(180, 655, 250, 60, 0, 0, Math.PI * 2); ctx.fill();
 
+            // --- レーンとカーブの描画 ---
             ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 4;
-            ctx.beginPath(); ctx.moveTo(laneX, canvas.height); ctx.lineTo(laneX, laneTop); ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(laneX, canvas.height);
+            ctx.lineTo(laneX, laneCurveStart); // 直線
+            // 上部で左へ曲がるカーブ
+            ctx.quadraticCurveTo(laneX, 30, laneX - 60, 20); 
+            ctx.stroke();
 
+            // プランジャー本体
             ctx.fillStyle = '#7f8c8d'; ctx.fillRect(laneX + 5, plunger.y, 25, 12); 
 
+            // スプリング
             ctx.strokeStyle = '#bdc3c7'; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.moveTo(laneX + 17.5, plunger.y + 12);
             const segments = 12;
@@ -222,31 +239,24 @@
             bumpers.forEach(drawFrogBumper);
             leftFlipper.draw(); rightFlipper.draw();
             
-            // --- Safari対策：より明示的なボール描画 ---
+            // --- ボールの描画 ---
             ctx.save();
             ctx.translate(ball.x, ball.y);
-            
-            // 1. 白いベース
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
             ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = '#111111'; // 枠線をさらに濃く
+            ctx.strokeStyle = '#111111';
             ctx.lineWidth = 2;
             ctx.stroke();
-
-            // 2. 芯（黒目）：確実に色を出すため純黒（#000000）を指定
             ctx.fillStyle = '#000000'; 
             ctx.beginPath();
             ctx.arc(0, 0, ball.radius * 0.5, 0, Math.PI * 2);
             ctx.fill();
-
-            // 3. ハイライト：位置を少しズラして「たまご」らしさを強調
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
             ctx.arc(-ball.radius * 0.3, -ball.radius * 0.3, ball.radius * 0.15, 0, Math.PI * 2);
             ctx.fill();
-            
             ctx.restore();
         }
 
