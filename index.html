@@ -65,7 +65,7 @@
         const laneTop = 150; 
         const plunger = {
             y: 580, minY: 580, maxY: 640, 
-            isCharging: false, k: 1.8 // さらにバネを強化
+            isCharging: false, k: 1.8 
         };
         
         const flipY = 560; 
@@ -101,7 +101,7 @@
             } else {
                 if (plunger.y > plunger.minY) {
                     if (ball.x > laneX && ball.y > plunger.y - 50) {
-                        ball.vy = -((plunger.y - plunger.minY) * plunger.k + 20); // 初速を底上げ
+                        ball.vy = -((plunger.y - plunger.minY) * plunger.k + 20);
                         ball.y = plunger.y - ball.radius - 5;
                     }
                     plunger.y -= 30; 
@@ -221,29 +221,29 @@
             bumpers.forEach(drawFrogBumper);
             leftFlipper.draw(); rightFlipper.draw();
             
-            // --- ボールの描画（たまごデザインを厳密に修正） ---
+            // --- ボールの描画（中心が白くならないように調整） ---
             ctx.save();
             ctx.translate(ball.x, ball.y);
             
-            // 1. 白い殻（ベース）
+            // 1. 白いベース
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
             ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = '#4A4A4A';
-            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 2;
             ctx.stroke();
 
-            // 2. 中央の核（グレーの部分：サイズを少し大きく調整）
-            ctx.fillStyle = '#708090';
+            // 2. 中央の核（色を少し濃いグレーに変更：#555）
+            ctx.fillStyle = '#555555'; 
             ctx.beginPath();
-            ctx.arc(0, 0, ball.radius * 0.45, 0, Math.PI * 2);
+            ctx.arc(0, 0, ball.radius * 0.55, 0, Math.PI * 2);
             ctx.fill();
 
-            // 3. ハイライト（白い光：位置をずらして核と重ならないように調整）
+            // 3. ハイライト（白い光：端に寄せて核を邪魔しない位置へ）
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
-            ctx.arc(-ball.radius * 0.35, -ball.radius * 0.35, ball.radius * 0.12, 0, Math.PI * 2);
+            ctx.arc(-ball.radius * 0.4, -ball.radius * 0.4, ball.radius * 0.15, 0, Math.PI * 2);
             ctx.fill();
             
             ctx.restore();
