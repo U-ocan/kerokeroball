@@ -187,47 +187,44 @@
             ctx.fillStyle = '#218c74';
             ctx.beginPath(); ctx.ellipse(180, 655, 250, 60, 0, 0, Math.PI * 2); ctx.fill();
 
-            // --- スリングショット描画（とんがり解消＆ゴム短縮版） ---
-const slingColor = '#44bd32'; // カエルらしい明るい緑
-const rubberColor = '#ffffff'; // ゴムの白
-const rubberWidth = 6; // ゴムを少し太くして視認性向上
-const cornerRadius = 15; // 角の丸み（R）を大きくしてぷにっ感を強調
+           // --- スリングショット描画（精密調整版） ---
+const slingColor = '#2ecc71'; // 黄味を抑えた鮮やかなエメラルドグリーン
+const rubberColor = '#ffffff'; 
+const rubberWidth = 6;
+const cornerRadius = 15;
 
 [ 
     {p1:{x:0, y:slingTop}, p2:{x:70, y:flipY}, p3:{x:0, y:flipY}},
     {p1:{x:360, y:slingTop}, p2:{x:290, y:flipY}, p3:{x:360, y:flipY}}
 ].forEach(s => {
-    // 1. --- 三角形本体（丸角） ---
-    // ここでとんがり感を解消し、明るい緑で塗りつぶす
+    // 1. 本体（丸角三角形）
     ctx.fillStyle = slingColor;
     ctx.beginPath();
-    ctx.moveTo(s.p1.x, s.p1.y + cornerRadius); // p1の少し下
-    ctx.arcTo(s.p1.x, s.p1.y, s.p2.x, s.p2.y, cornerRadius); // p1角を丸める
-    ctx.arcTo(s.p2.x, s.p2.y, s.p3.x, s.p3.y, cornerRadius); // p2角を丸める
-    ctx.arcTo(s.p3.x, s.p3.y, s.p1.x, s.p1.y, cornerRadius); // p3角を丸める
+    ctx.moveTo(s.p1.x, s.p1.y + cornerRadius);
+    ctx.arcTo(s.p1.x, s.p1.y, s.p2.x, s.p2.y, cornerRadius);
+    ctx.arcTo(s.p2.x, s.p2.y, s.p3.x, s.p3.y, cornerRadius);
+    ctx.arcTo(s.p3.x, s.p3.y, s.p1.x, s.p1.y, cornerRadius);
     ctx.closePath();
     ctx.fill();
 
-    // 2. --- 白いゴム（短く、突き出させない） ---
-    // 斜辺（p1-p2）の直線部分だけに、Rを考慮して短く配置する
+    // 2. 白いゴム（上下でオフセットを変えて短縮）
     ctx.strokeStyle = rubberColor;
     ctx.lineWidth = rubberWidth;
-    ctx.lineCap = 'round'; // ゴムの端を丸くして自然な質感に
+    ctx.lineCap = 'round';
 
-    // 斜辺のベクトルを計算
     const dx = s.p2.x - s.p1.x;
     const dy = s.p2.y - s.p1.y;
     const len = Math.sqrt(dx * dx + dy * dy);
 
-    if (len > cornerRadius * 2) {
-        // 短くするオフセット（Rより少し大きくして、完全に直線部へ置く）
-        const offset = cornerRadius * 1.1; 
+    if (len > cornerRadius * 3) {
+        // オフセットの個別設定
+        const topOffset = cornerRadius * 1.8;    // 上部は大幅に削って短く
+        const bottomOffset = cornerRadius * 1.2; // 下部は適度に削る
         
-        // 短くした始点・終点座標を計算
-        const startX = s.p1.x + (dx / len) * offset;
-        const startY = s.p1.y + (dy / len) * offset;
-        const endX = s.p2.x - (dx / len) * offset;
-        const endY = s.p2.y - (dy / len) * offset;
+        const startX = s.p1.x + (dx / len) * topOffset;
+        const startY = s.p1.y + (dy / len) * topOffset;
+        const endX = s.p2.x - (dx / len) * bottomOffset;
+        const endY = s.p2.y - (dy / len) * bottomOffset;
 
         ctx.beginPath();
         ctx.moveTo(startX, startY);
