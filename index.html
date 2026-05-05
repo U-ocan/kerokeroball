@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KerokeroBall - Precise Edition</title>
+    <title>KerokeroBall - Frog Edition</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 8px solid #27ae60; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 100%; max-height: 90vh; }
@@ -13,7 +13,7 @@
 <body>
     <div id="ui">
         <h1 style="margin:0">KerokeroBall</h1>
-        <p>重力 0.42 / 減衰 0.85 カスタム適用済み</p>
+        <p>カエルのバンパーを実装しました！</p>
         <div id="score">Score: 0</div>
     </div>
     <canvas id="gameCanvas"></canvas>
@@ -26,10 +26,15 @@
         canvas.width = 400;
         canvas.height = 600;
 
-        // Uさんのカスタム設定
         const gravity = 0.42; 
         const decay = 0.85;   
         let score = 0;
+
+        // 画像の読み込み設定
+        const frogImg = new Image();
+        frogImg.src = 'https://r.jina.ai/i/609a349b14f84c59800d9818818c1d53'; // 送っていただいたカエル画像
+        let imgLoaded = false;
+        frogImg.onload = () => { imgLoaded = true; };
 
         const ball = {
             x: 200, y: -50, vx: 2, vy: 0, radius: 15, color: '#ffffff'
@@ -69,15 +74,17 @@
 
         const slingTop = flipY - 105;
 
+        // バンパー描画関数を更新
         function drawFrogBumper(b) {
-            ctx.fillStyle = '#2ecc71';
-            ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = 'white';
-            ctx.beginPath(); ctx.arc(b.x - 15, b.y - 12, 10, 0, Math.PI * 2); ctx.arc(b.x + 15, b.y - 12, 10, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = 'black';
-            ctx.beginPath(); ctx.arc(b.x - 15, b.y - 12, 5, 0, Math.PI * 2); ctx.arc(b.x + 15, b.y - 12, 5, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.arc(b.x, b.y + 10, 15, 0.2, Math.PI - 0.2); ctx.stroke();
+            if (imgLoaded) {
+                // 画像を円のサイズ（半径 * 2）に合わせて描画
+                const size = b.r * 2.2; // 少し大きめに表示してイラストの端まで見せる
+                ctx.drawImage(frogImg, b.x - size/2, b.y - size/2, size, size);
+            } else {
+                // 画像読み込み前のフォールバック（従来の円形）
+                ctx.fillStyle = '#2ecc71';
+                ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+            }
         }
 
         function resetBall() {
@@ -91,30 +98,26 @@
             ball.x += ball.vx;
             ball.y += ball.vy;
 
-            // 微小な空気抵抗（常時）
             ball.vx *= 0.998;
             ball.vy *= 0.998;
 
-            // 壁の反発
             if (ball.x < ball.radius && ball.y < slingTop) { ball.vx *= -0.7; ball.x = ball.radius; }
             if (ball.x > canvas.width - ball.radius && ball.y < slingTop) { ball.vx *= -0.7; ball.x = canvas.width - ball.radius; }
             if (ball.y < ball.radius && ball.y > -100) { ball.vy *= -0.7; ball.y = ball.radius; }
 
-            // バンパー判定（減衰＋最低速度保証）
             bumpers.forEach(b => {
                 const dx = ball.x - b.x; const dy = ball.y - b.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist < ball.radius + b.r) {
                     const angle = Math.atan2(dy, dx);
                     const speed = Math.sqrt(ball.vx**2 + ball.vy**2);
-                    const newSpeed = Math.max(speed * decay, 9); // 重力に合わせて最低速度を9に微増
+                    const newSpeed = Math.max(speed * decay, 9); 
                     ball.vx = Math.cos(angle) * newSpeed;
                     ball.vy = Math.sin(angle) * newSpeed;
                     score += 10; scoreEl.innerText = `Score: ${score}`;
                 }
             });
 
-            // スリングショット（動的計算による空中停止防止）
             const slingshots = [{isLeft:true, x:0}, {isLeft:false, x:400}];
             slingshots.forEach(s => {
                 if (ball.y >= slingTop && ball.y <= flipY) {
@@ -131,7 +134,6 @@
                 }
             });
 
-            // フリッパー判定（貫通防止＋座標押し戻し）
             [leftFlipper, rightFlipper].forEach(f => {
                 f.update();
                 const dx = ball.x - f.x;
@@ -143,9 +145,9 @@
 
                 if (rx * f.side > -10 && rx * f.side < f.length + 10 && Math.abs(ry) < ball.radius + 15) {
                     if (Math.abs(f.targetAngle - f.angle) > 0.02) {
-                        ball.vy = -20; // 重力強化に合わせてパワーを少しアップ
+                        ball.vy = -20;
                         ball.vx = (ball.x - f.x) * 0.35;
-                        ball.y = f.y - 45; // 押し戻しを強化
+                        ball.y = f.y - 45;
                     } else if (ry < 0) {
                         ball.vy *= -0.3;
                         ball.vx *= 0.5;
