@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KerokeroBall - Frog Edition</title>
+    <title>KerokeroBall - Alpha Fix</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 8px solid #27ae60; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 100%; max-height: 90vh; }
@@ -13,7 +13,7 @@
 <body>
     <div id="ui">
         <h1 style="margin:0">KerokeroBall</h1>
-        <p>カエルのバンパーを実装しました！</p>
+        <p>透過設定を更新しました</p>
         <div id="score">Score: 0</div>
     </div>
     <canvas id="gameCanvas"></canvas>
@@ -30,11 +30,14 @@
         const decay = 0.85;   
         let score = 0;
 
-        // 画像の読み込み設定
+        // 画像の読み込み設定（Rawリンクに変更）
         const frogImg = new Image();
-        frogImg.src = 'https://raw.githubusercontent.com/U-ocan/kerokeroball/main/frog.PNG'; // 送っていただいたカエル画像
+        frogImg.crossOrigin = "anonymous"; // クロスドメインエラー防止
+        frogImg.src = 'https://raw.githubusercontent.com/U-ocan/kerokeroball/main/frog.PNG'; 
+
         let imgLoaded = false;
         frogImg.onload = () => { imgLoaded = true; };
+        frogImg.onerror = () => { console.error("画像読み込み失敗。URLを確認してください。"); };
 
         const ball = {
             x: 200, y: -50, vx: 2, vy: 0, radius: 15, color: '#ffffff'
@@ -74,14 +77,15 @@
 
         const slingTop = flipY - 105;
 
-        // バンパー描画関数を更新
         function drawFrogBumper(b) {
             if (imgLoaded) {
-                // 画像を円のサイズ（半径 * 2）に合わせて描画
-                const size = b.r * 2.2; // 少し大きめに表示してイラストの端まで見せる
+                const size = b.r * 2.2;
+                ctx.save();
+                // 念のため描画時の合成モードを明示（透過を維持）
+                ctx.globalCompositeOperation = 'source-over';
                 ctx.drawImage(frogImg, b.x - size/2, b.y - size/2, size, size);
+                ctx.restore();
             } else {
-                // 画像読み込み前のフォールバック（従来の円形）
                 ctx.fillStyle = '#2ecc71';
                 ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
             }
@@ -97,7 +101,6 @@
             ball.vy += gravity;
             ball.x += ball.vx;
             ball.y += ball.vy;
-
             ball.vx *= 0.998;
             ball.vy *= 0.998;
 
