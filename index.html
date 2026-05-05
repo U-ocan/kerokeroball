@@ -100,31 +100,28 @@ const plunger = {
 
         function resetBall() {
     ball.x = 345; // レーンの中央（laneX:330 + 余白）
-    ball.y = 500; // プランジャーの少し上
+    ball.y = 540; // プランジャー(600)の十分上
     ball.vx = 0;
     ball.vy = 0;
 }
 
             function update() {
             // --- プランジャーのチャージ＆発射ロジック ---
-            if (plunger.isCharging) {
-                // スペースキー押下中：ゆっくりバネを縮める
-                if (plunger.y < plunger.maxY) plunger.y += 1.5; 
-            } else {
-                // キーを離した瞬間：バネが戻る
-                if (plunger.y > plunger.minY) {
-                    // ボールがプランジャー付近にいる場合、上方向の速度を与える
-                    if (ball.x > laneX && ball.y > plunger.y - 40) {
-                        // (沈み込んだ量 * 係数) でパワーを決定
-                        ball.vy = -(plunger.y - plunger.minY) * plunger.k * 3.5;
-                        // 横方向の微かな揺らぎ（自然に見せるため）
-                        ball.vx = (Math.random() - 0.5) * 1;
-                    }
-                    plunger.y -= 15; // 素早く元の位置に戻る
-                } else {
-                    plunger.y = plunger.minY; // 完全に元に戻す
-                }
-            }
+            // update() 内のプランジャー部分をこれに差し替え
+if (plunger.isCharging) {
+    if (plunger.y < plunger.maxY) plunger.y += 1.5; 
+} else {
+    if (plunger.y > plunger.minY) {
+        // 発射判定：ボールがレーン内にあり、かつプランジャーの「板のすぐ上」にいる時のみ
+        if (ball.x > laneX && ball.y > plunger.y - 45 && ball.y < plunger.y) {
+            ball.vy = -(plunger.y - plunger.minY) * plunger.k * 3.5;
+            ball.y = plunger.y - ball.radius - 5; // めり込み防止：板の少し上に強制移動
+        }
+        plunger.y -= 15; 
+    } else {
+        plunger.y = plunger.minY;
+    }
+}
 
             // 以下、既存の物理計算
             ball.vy += gravity;
@@ -138,14 +135,16 @@ const plunger = {
             if (ball.x < ball.radius) { ball.vx *= -0.5; ball.x = ball.radius; }
             if (ball.x > canvas.width - ball.radius) { ball.vx *= -0.5; ball.x = canvas.width - ball.radius; }
             if (ball.y < ball.radius) { ball.vy *= -0.5; ball.y = ball.radius; }
-// 右レーンの内壁判定（上部100px以外を壁にする）
-            if (ball.y > 100) {
-               // xが330(laneX)付近にあるとき、かつボールが左へ行こうとしているならブロック
-    if (ball.x > laneX - ball.radius && ball.x < laneX + 20) {
-        if (ball.vx < 0) ball.vx *= -0.5; 
-        ball.x = laneX - ball.radius;
-                }
-            }
+ // 右レーンの内壁判定（y=100より下で、レーン境界線 laneX をまたごうとしたら押し戻す）
+if (ball.y > 100) {
+    // laneX(330) から右に30pxの範囲を「壁エリア」として定義
+    if (ball.x > laneX - ball.radius && ball.x < laneX + 30) {
+        if (ball.vx < 0) { // 左に向かおうとしている場合
+            ball.vx = Math.abs(ball.vx) * 0.3; // 弱く右へ跳ね返す
+            ball.x = laneX - ball.radius; // 位置を強制補正
+        }
+    }
+}
                 
             // バンパー
             bumpers.forEach(b => {
