@@ -100,7 +100,7 @@ const plunger = {
 
         function resetBall() {
     ball.x = 345; // レーンの中央（laneX:330 + 余白）
-    ball.y = 580; // プランジャーの少し上
+    ball.y = 500; // プランジャーの少し上
     ball.vx = 0;
     ball.vy = 0;
 }
@@ -140,9 +140,10 @@ const plunger = {
             if (ball.y < ball.radius) { ball.vy *= -0.5; ball.y = ball.radius; }
 // 右レーンの内壁判定（上部100px以外を壁にする）
             if (ball.y > 100) {
-                if (ball.x > laneX - ball.radius && ball.x < laneX + 5) {
-                    ball.vx = -Math.abs(ball.vx) * 0.5; // 左へ跳ね返す
-                    ball.x = laneX - ball.radius;
+               // xが330(laneX)付近にあるとき、かつボールが左へ行こうとしているならブロック
+    if (ball.x > laneX - ball.radius && ball.x < laneX + 20) {
+        if (ball.vx < 0) ball.vx *= -0.5; 
+        ball.x = laneX - ball.radius;
                 }
             }
                 
@@ -359,30 +360,40 @@ const cornerRadius = 15;
         });
 
         // タッチ操作（マルチタッチ対応）
-        canvas.addEventListener('touchstart', e => {
-            e.preventDefault();
-            // 新しく触れた指すべてをチェック
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const touch = e.changedTouches[i];
-                const side = touch.clientX < window.innerWidth / 2 ? 'left' : 'right';
-                handleInput(side, true);
-            }
-        }, {passive: false});
+       canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const touch = e.changedTouches[i];
+        const rect = canvas.getBoundingClientRect();
+        const touchX = (touch.clientX - rect.left) * (canvas.width / rect.width);
+        const touchY = (touch.clientY - rect.top) * (canvas.height / rect.height);
 
-        canvas.addEventListener('touchend', e => {
-            e.preventDefault();
-            // 指が離れたとき、画面のどちら側に指が残っていないかを判定
-            let leftActive = false;
-            let rightActive = false;
-            
-            for (let i = 0; i < e.touches.length; i++) {
-                if (e.touches[i].clientX < window.innerWidth / 2) leftActive = true;
-                else rightActive = true;
-            }
-            
-            if (!leftActive) handleInput('left', false);
-            if (!rightActive) handleInput('right', false);
-        }, {passive: false});
+        // 右下（プランジャー付近）をタップした場合はプランジャーをチャージ
+        if (touchX > laneX && touchY > 500) {
+            plunger.isCharging = true;
+        } else {
+            const side = touch.clientX < window.innerWidth / 2 ? 'left' : 'right';
+            handleInput(side, true);
+        }
+    }
+}, {passive: false});
+
+canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    // 全ての指が離れたらプランジャーのチャージを解除
+    if (e.touches.length === 0) {
+        plunger.isCharging = false;
+    }
+    // フリッパーの判定（既存のロジック）
+    let leftActive = false;
+    let rightActive = false;
+    for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].clientX < window.innerWidth / 2) leftActive = true;
+        else rightActive = true;
+    }
+    if (!leftActive) handleInput('left', false);
+    if (!rightActive) handleInput('right', false);
+}, {passive: false});
         canvas.addEventListener('touchend', (e) => {
             if (e.touches.length === 0) { handleInput('left', false); handleInput('right', false); }
         });
