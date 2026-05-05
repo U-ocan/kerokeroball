@@ -92,6 +92,8 @@
             ball.vy = 2;
         }
 
+       // --- 物理判定ロジックの抜粋（update関数内の判定部分を差し替え） ---
+
         function update() {
             ball.vy += gravity;
             ball.x += ball.vx;
@@ -100,23 +102,46 @@
             ball.vx *= 0.995;
             ball.vy *= 0.995;
 
-            // 壁・スリング
+            // 1. 壁・天井判定
             if (ball.x < ball.radius && ball.y < slingTop) { ball.vx *= -0.5; ball.x = ball.radius; }
             if (ball.x > canvas.width - ball.radius && ball.y < slingTop) { ball.vx *= -0.5; ball.x = canvas.width - ball.radius; }
             if (ball.y < ball.radius && ball.y > -100) { ball.vy *= -0.5; ball.y = ball.radius; }
 
+            // 2. バンパー判定
             bumpers.forEach(b => {
                 const dx = ball.x - b.x; const dy = ball.y - b.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist < ball.radius + b.r) {
                     const angle = Math.atan2(dy, dx);
-                    ball.vx = Math.cos(angle) * 10;
-                    ball.vy = Math.sin(angle) * 10;
+                    ball.vx = Math.cos(angle) * 11;
+                    ball.vy = Math.sin(angle) * 11;
                     score += 10; scoreEl.innerText = `Score: ${score}`;
                 }
             });
 
-            // フリッパー判定（無限ラリー対策版）
+            // 3. スリングショット（判定を「面」に強化し、境目を埋める）
+            const slingshots = [{isLeft:true, x:0}, {isLeft:false, x:360}];
+            slingshots.forEach(s => {
+                if (ball.y >= slingTop - 10 && ball.y <= flipY + 5) { // 判定を上下に広げる
+                    const progress = (ball.y - slingTop) / (flipY - slingTop);
+                    const slopeX = s.isLeft ? (progress * 75) : 360 - (progress * 75); // 少し内側まで判定
+                    
+                    if (s.isLeft && ball.x - ball.radius < slopeX) {
+                        ball.vx = Math.abs(ball.vx) + 7; // 反発力を保証
+                        ball.vy = -5;
+                        ball.x = slopeX + ball.radius + 2; 
+                        score += 5;
+                    } else if (!s.isLeft && ball.x + ball.radius > slopeX) {
+                        ball.vx = -Math.abs(ball.vx) - 7;
+                        ball.vy = -5;
+                        ball.x = slopeX - ball.radius - 2;
+                        score += 5;
+                    }
+                    scoreEl.innerText = `Score: ${score}`;
+                }
+            });
+
+            // 4. フリッパー判定（厚みと境目の重なりを強化）
             [leftFlipper, rightFlipper].forEach(f => {
                 f.update();
                 const dx = ball.x - f.x;
@@ -126,30 +151,27 @@
                 const rx = dx * cos - dy * sin;
                 const ry = dx * sin + dy * cos;
 
-                const isFlipping = Math.abs(f.angle - f.prevAngle) > 0.01;
+                const isFlipping = Math.abs(f.angle - f.prevAngle) > 0.005;
 
-                if (rx * f.side > -5 && rx * f.side < f.length + 5 && Math.abs(ry) < ball.radius + 8) {
+                // 厚みを 15 に増やし、根元の判定 (rx * f.side > -15) を広げて境目をカバー
+                if (rx * f.side > -15 && rx * f.side < f.length + 10 && Math.abs(ry) < ball.radius + 15) {
                     if (isFlipping) {
-                        // フリップ中：しっかり弾く
-                        const power = 18;
+                        const power = 19;
                         ball.vy = -power * Math.cos(f.angle);
                         ball.vx = power * Math.sin(f.angle) * f.side;
-                        ball.y = f.y - 30; 
+                        ball.y = f.y - 35; 
                     } else {
-                        // 静止中：反発を極限まで抑える
-                        ball.vx *= 0.8;
-                        ball.vy *= 0.8;
+                        // 静止時の挙動
+                        ball.vx *= 0.85;
+                        ball.vy *= 0.85;
+                        if (Math.abs(ball.vy) < 0.6) ball.vy = 0;
 
-                        // 速度が極めて遅い場合は停止（ラリー防止）
-                        if (Math.abs(ball.vy) < 0.8) ball.vy = 0;
-
-                        // 斜面に沿った移動
-                        const slide = 0.45;
+                        const slide = 0.48;
                         ball.vx += Math.cos(f.angle) * slide * f.side;
                         ball.vy += Math.sin(f.angle) * slide;
 
-                        // 押し出し
-                        const targetRy = (ry > 0 ? 1 : -1) * (ball.radius + 5);
+                        // 強制押し出し（すり抜け防止）
+                        const targetRy = (ry > 0 ? 1 : -1) * (ball.radius + 10);
                         const diffY = targetRy - ry;
                         ball.x += diffY * -sin;
                         ball.y += diffY * cos;
