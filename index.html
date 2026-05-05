@@ -121,18 +121,25 @@
                 }
             });
 
-            // スリングショット
+            // --- スリングショット判定ロジック：脱出強化版 ---
             const slingshots = [{isLeft:true}, {isLeft:false}];
             slingshots.forEach(s => {
                 if (ball.y >= slingTop - 10 && ball.y <= flipY + 5) {
                     const progress = (ball.y - slingTop) / (flipY - slingTop);
                     const slopeX = s.isLeft ? (progress * 75) : 360 - (progress * 75);
+                    
                     if (s.isLeft && ball.x - ball.radius < slopeX) {
-                        ball.vx = 7 + Math.random() * 2; ball.vy = -8;
-                        ball.x = slopeX + ball.radius + 2; score += 5;
+                        // 左側：右斜め「上」へ強く弾く
+                        ball.vx = 4 + Math.random() * 3;  // 横は少し弱めに
+                        ball.vy = -10 - Math.random() * 4; // 上への力を大幅強化（脱出優先）
+                        ball.x = slopeX + ball.radius + 2; 
+                        score += 5;
                     } else if (!s.isLeft && ball.x + ball.radius > slopeX) {
-                        ball.vx = -7 - Math.random() * 2; ball.vy = -8;
-                        ball.x = slopeX - ball.radius - 2; score += 5;
+                        // 右側：左斜め「上」へ強く弾く
+                        ball.vx = -4 - Math.random() * 3; // 横は少し弱めに
+                        ball.vy = -10 - Math.random() * 4; // 上への力を大幅強化
+                        ball.x = slopeX - ball.radius - 2;
+                        score += 5;
                     }
                     scoreEl.innerText = `Score: ${score}`;
                 }
