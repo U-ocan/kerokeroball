@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KerokeroBall - iPhone 13 mini Fix</title>
+    <title>KerokeroBall - Natural Physics</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
-        /* 枠線を少し細くし、スマホ画面に収まりやすく調整 */
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 95vh; }
         #ui { position: absolute; top: 20px; color: white; text-align: center; pointer-events: none; z-index: 10; width: 100%; }
     </style>
@@ -23,7 +22,6 @@
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
 
-        // iPhone 13 mini 向けサイズ調整
         canvas.width = 360; 
         canvas.height = 660; 
 
@@ -39,7 +37,7 @@
         frogImg.onload = () => { imgLoaded = true; };
 
         const ball = {
-            x: 180, y: -50, vx: 2, vy: 0, radius: 15, color: '#ffffff'
+            x: 180, y: -50, vx: 2, vy: 0, radius: 14, color: '#ffffff'
         };
 
         class Flipper {
@@ -48,8 +46,10 @@
                 this.baseAngle = angle; this.angle = angle;
                 this.side = side;
                 this.targetAngle = angle;
+                this.prevAngle = angle;
             }
             update() {
+                this.prevAngle = this.angle;
                 this.angle += (this.targetAngle - this.angle) * 0.45;
             }
             draw() {
@@ -58,22 +58,20 @@
                 ctx.rotate(this.angle);
                 ctx.fillStyle = '#27ae60';
                 ctx.beginPath();
-                ctx.roundRect(0, -12, this.length * this.side, 24, 12);
+                ctx.roundRect(0, -10, this.length * this.side, 20, 10);
                 ctx.fill();
                 ctx.restore();
             }
         }
 
-        // フリッパー位置を360幅に合わせて内側へ
         const flipY = 560; 
         const leftFlipper = new Flipper(70, flipY, 95, 0.6, 1);
         const rightFlipper = new Flipper(290, flipY, 95, -0.6, -1);
 
-        // バンパー配置を中央寄せ
         const bumpers = [
-            { x: 90, y: 160, r: 35 },
-            { x: 270, y: 160, r: 35 },
-            { x: 180, y: 300, r: 45 }
+            { x: 90, y: 165, r: 35 },
+            { x: 270, y: 165, r: 35 },
+            { x: 180, y: 305, r: 45 }
         ];
 
         const slingTop = flipY - 105;
@@ -98,14 +96,17 @@
             ball.vy += gravity;
             ball.x += ball.vx;
             ball.y += ball.vy;
-            ball.vx *= 0.998;
-            ball.vy *= 0.998;
 
-            // 壁判定を360幅に修正
-            if (ball.x < ball.radius && ball.y < slingTop) { ball.vx *= -0.7; ball.x = ball.radius; }
-            if (ball.x > canvas.width - ball.radius && ball.y < slingTop) { ball.vx *= -0.7; ball.x = canvas.width - ball.radius; }
-            if (ball.y < ball.radius && ball.y > -100) { ball.vy *= -0.7; ball.y = ball.radius; }
+            // 微小な摩擦
+            ball.vx *= 0.995;
+            ball.vy *= 0.995;
 
+            // 壁判定
+            if (ball.x < ball.radius && ball.y < slingTop) { ball.vx *= -0.6; ball.x = ball.radius; }
+            if (ball.x > canvas.width - ball.radius && ball.y < slingTop) { ball.vx *= -0.6; ball.x = canvas.width - ball.radius; }
+            if (ball.y < ball.radius && ball.y > -100) { ball.vy *= -0.6; ball.y = ball.radius; }
+
+            // バンパー
             bumpers.forEach(b => {
                 const dx = ball.x - b.x; const dy = ball.y - b.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -119,66 +120,63 @@
                 }
             });
 
-            // スリングショット判定を360幅に修正
+            // スリングショット
             const slingshots = [{isLeft:true, x:0}, {isLeft:false, x:360}];
             slingshots.forEach(s => {
                 if (ball.y >= slingTop && ball.y <= flipY) {
                     const progress = (ball.y - slingTop) / (flipY - slingTop);
                     const slopeX = s.isLeft ? (progress * 70) : 360 - (progress * 70);
                     if (s.isLeft && ball.x - ball.radius < slopeX) {
-                        ball.vx = 10 * decay; ball.vy = -6 * decay; ball.x = slopeX + ball.radius;
+                        ball.vx = 8; ball.vy = -4; ball.x = slopeX + ball.radius;
                         score += 5;
                     } else if (!s.isLeft && ball.x + ball.radius > slopeX) {
-                        ball.vx = -10 * decay; ball.vy = -6 * decay; ball.x = slopeX - ball.radius;
+                        ball.vx = -8; ball.vy = -4; ball.x = slopeX - ball.radius;
                         score += 5;
                     }
                     scoreEl.innerText = `Score: ${score}`;
                 }
             });
 
-            // --- 修正されたフリッパー判定ロジック（update関数内を差し替え） ---
+            // フリッパー新物理
+            [leftFlipper, rightFlipper].forEach(f => {
+                f.update();
+                const dx = ball.x - f.x;
+                const dy = ball.y - f.y;
+                const cos = Math.cos(-f.angle);
+                const sin = Math.sin(-f.angle);
+                const rx = dx * cos - dy * sin;
+                const ry = dx * sin + dy * cos;
 
-[leftFlipper, rightFlipper].forEach(f => {
-    f.update();
-    const dx = ball.x - f.x;
-    const dy = ball.y - f.y;
-    
-    // フリッパーの角度に合わせて座標を回転
-    const cos = Math.cos(-f.angle);
-    const sin = Math.sin(-f.angle);
-    const rx = dx * cos - dy * sin;
-    const ry = dx * sin + dy * cos;
+                const isFlipping = Math.abs(f.angle - f.prevAngle) > 0.005;
 
-    // フリッパーの当たり判定（長方形領域）
-    const fWidth = f.length;
-    const fHeight = 15; // フリッパーの厚み
+                // 判定エリアの調整
+                if (rx * f.side > -5 && rx * f.side < f.length + 5 && Math.abs(ry) < ball.radius + 10) {
+                    if (isFlipping) {
+                        // 打撃中：強く弾く
+                        const power = 18;
+                        ball.vy = -power * Math.cos(f.angle);
+                        ball.vx = power * Math.sin(f.angle) * f.side + (ball.x - f.x) * 0.1;
+                        ball.y = f.y + (ry > 0 ? 25 : -25);
+                    } else {
+                        // 静止中：斜面として振る舞う
+                        const friction = 0.92;
+                        ball.vx *= friction;
+                        ball.vy *= friction;
 
-    if (rx * f.side > -10 && rx * f.side < fWidth + 10 && Math.abs(ry) < ball.radius + fHeight) {
-        
-        // 1. フリッパーが動いている（フリップ中）
-        if (Math.abs(f.targetAngle - f.angle) > 0.01) {
-            ball.vy = -20;
-            ball.vx = (ball.x - f.x) * 0.4;
-            ball.y = f.y - 45; // 強制的に上へ
-        } 
-        // 2. フリッパーが止まっている（斜面として機能）
-        else {
-            // ボールをフリッパーの表面に押し出す
-            const overlap = (ball.radius + fHeight/2) - Math.abs(ry);
-            if (ry > 0) ball.y += overlap; else ball.y -= overlap;
+                        // 斜面に沿った転がり（重力の分解）
+                        const slideForce = 0.4;
+                        // フリッパーの角度に応じてボールを動かす。上げている時は根元(x減少)へ、下げている時は先端(x増加)へ。
+                        ball.vx += Math.cos(f.angle) * slideForce * f.side;
+                        ball.vy += Math.sin(f.angle) * slideForce;
 
-            // 斜面に沿った転がり落ちを計算
-            // 角度 f.angle に応じて重力を vx, vy に分解して付与
-            const slopeAccel = 0.5; // 滑り落ちる強さ
-            ball.vx += Math.cos(f.angle) * slopeAccel * f.side;
-            ball.vy += Math.sin(f.angle) * slopeAccel;
-
-            // 速度の減衰（バウンドし続けないようにエネルギーを吸収）
-            ball.vx *= 0.95;
-            ball.vy *= 0.95;
-        }
-    }
-});
+                        // 押し出し（埋まり防止）
+                        const targetRy = (ry > 0 ? 1 : -1) * (ball.radius + 5);
+                        const diffY = targetRy - ry;
+                        ball.x += diffY * -sin;
+                        ball.y += diffY * cos;
+                    }
+                }
+            });
 
             if (ball.y > canvas.height + 100) {
                 score = 0; scoreEl.innerText = `Score: ${score}`;
@@ -197,7 +195,6 @@
             ctx.fillStyle = '#27ae60';
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 4;
-            // 360幅に合わせて左右の壁のラインを描画
             [ {p1:{x:0, y:slingTop}, p2:{x:70, y:flipY}, p3:{x:0, y:flipY}},
               {p1:{x:360, y:slingTop}, p2:{x:290, y:flipY}, p3:{x:360, y:flipY}}
             ].forEach(s => {
