@@ -35,8 +35,9 @@
         let imgLoaded = false;
         frogImg.onload = () => { imgLoaded = true; };
 
+        // ボール初期設定（最初は画面中央より少し上に配置）
         const ball = {
-            x: 180, y: -50, vx: 2, vy: 0, radius: 16, color: '#ffffff'
+            x: 180, y: 50, vx: 0, vy: 0, radius: 16
         };
 
         class Flipper {
@@ -86,7 +87,8 @@
         }
 
         function resetBall() {
-            ball.x = 180; ball.y = -30;
+            ball.x = 180;
+            ball.y = 20; // 画面内に配置
             ball.vx = (Math.random() - 0.5) * 6;
             ball.vy = 2;
         }
@@ -99,10 +101,12 @@
             ball.vx *= 0.995;
             ball.vy *= 0.995;
 
+            // 壁
             if (ball.x < ball.radius && ball.y < slingTop) { ball.vx *= -0.5; ball.x = ball.radius; }
             if (ball.x > canvas.width - ball.radius && ball.y < slingTop) { ball.vx *= -0.5; ball.x = canvas.width - ball.radius; }
-            if (ball.y < ball.radius && ball.y > -100) { ball.vy *= -0.5; ball.y = ball.radius; }
+            if (ball.y < ball.radius) { ball.vy *= -0.5; ball.y = ball.radius; }
 
+            // バンパー
             bumpers.forEach(b => {
                 const dx = ball.x - b.x; const dy = ball.y - b.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -111,37 +115,35 @@
                     ball.vx = Math.cos(angle) * 11;
                     ball.vy = Math.sin(angle) * 11;
                     score += 10; scoreEl.innerText = `Score: ${score}`;
+                    // 埋まり込み防止
+                    ball.x = b.x + Math.cos(angle) * (ball.radius + b.r + 2);
+                    ball.y = b.y + Math.sin(angle) * (ball.radius + b.r + 2);
                 }
             });
 
-            const slingshots = [{isLeft:true, x:0}, {isLeft:false, x:360}];
+            // スリングショット
+            const slingshots = [{isLeft:true}, {isLeft:false}];
             slingshots.forEach(s => {
                 if (ball.y >= slingTop - 10 && ball.y <= flipY + 5) {
                     const progress = (ball.y - slingTop) / (flipY - slingTop);
                     const slopeX = s.isLeft ? (progress * 75) : 360 - (progress * 75);
                     if (s.isLeft && ball.x - ball.radius < slopeX) {
-                        ball.vx = 6 + Math.random() * 2;
-                        ball.vy = -7 - Math.random() * 3;
-                        ball.x = slopeX + ball.radius + 2; 
-                        score += 5;
+                        ball.vx = 7 + Math.random() * 2; ball.vy = -8;
+                        ball.x = slopeX + ball.radius + 2; score += 5;
                     } else if (!s.isLeft && ball.x + ball.radius > slopeX) {
-                        ball.vx = -6 - Math.random() * 2;
-                        ball.vy = -7 - Math.random() * 3;
-                        ball.x = slopeX - ball.radius - 2;
-                        score += 5;
+                        ball.vx = -7 - Math.random() * 2; ball.vy = -8;
+                        ball.x = slopeX - ball.radius - 2; score += 5;
                     }
                     scoreEl.innerText = `Score: ${score}`;
                 }
             });
 
+            // フリッパー
             [leftFlipper, rightFlipper].forEach(f => {
                 f.update();
-                const dx = ball.x - f.x;
-                const dy = ball.y - f.y;
-                const cos = Math.cos(-f.angle);
-                const sin = Math.sin(-f.angle);
-                const rx = dx * cos - dy * sin;
-                const ry = dx * sin + dy * cos;
+                const dx = ball.x - f.x; const dy = ball.y - f.y;
+                const cos = Math.cos(-f.angle); const sin = Math.sin(-f.angle);
+                const rx = dx * cos - dy * sin; const ry = dx * sin + dy * cos;
                 const isFlipping = Math.abs(f.angle - f.prevAngle) > 0.005;
 
                 if (rx * f.side > -15 && rx * f.side < f.length + 10 && Math.abs(ry) < ball.radius + 15) {
@@ -152,13 +154,12 @@
                         ball.y = f.y - 35; 
                     } else {
                         ball.vx *= 0.85; ball.vy *= 0.85;
-                        if (Math.abs(ball.vy) < 0.6) ball.vy = 0;
                         const slide = 0.48;
                         ball.vx += Math.cos(f.angle) * slide * f.side;
                         ball.vy += Math.sin(f.angle) * slide;
                         const targetRy = (ry > 0 ? 1 : -1) * (ball.radius + 10);
-                        const diffY = targetRy - ry;
-                        ball.x += diffY * -sin; ball.y += diffY * cos;
+                        ball.x += (targetRy - ry) * -sin;
+                        ball.y += (targetRy - ry) * cos;
                     }
                 }
             });
@@ -175,35 +176,35 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // 下部の楕円
+            // 下部
             ctx.fillStyle = '#218c74';
             ctx.beginPath(); ctx.ellipse(180, 655, 250, 60, 0, 0, Math.PI * 2); ctx.fill();
 
-            // スリングショット描画
-            ctx.fillStyle = '#27ae60';
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 4;
-            [ {p1:{x:0, y:slingTop}, p2:{x:70, y:flipY}, p3:{x:0, y:flipY}},
-              {p1:{x:360, y:slingTop}, p2:{x:290, y:flipY}, p3:{x:360, y:flipY}}
+            // スリング
+            ctx.fillStyle = '#27ae60'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 4;
+            [ {p1:{x:0,y:slingTop}, p2:{x:70,y:flipY}, p3:{x:0,y:flipY}},
+              {p1:{x:360,y:slingTop}, p2:{x:290,y:flipY}, p3:{x:360,y:flipY}}
             ].forEach(s => {
                 ctx.beginPath(); ctx.moveTo(s.p1.x, s.p1.y); ctx.lineTo(s.p2.x, s.p2.y); ctx.lineTo(s.p3.x, s.p3.y); ctx.closePath(); ctx.fill();
                 ctx.beginPath(); ctx.moveTo(s.p1.x, s.p1.y); ctx.lineTo(s.p2.x, s.p2.y); ctx.stroke();
             });
 
-            // バンパーとフリッパー
             bumpers.forEach(drawFrogBumper);
             leftFlipper.draw();
             rightFlipper.draw();
             
-            // --- カエルのたまごボールの描画 ---
+            // --- カエルのたまごボール描画 ---
             ctx.save();
             ctx.translate(ball.x, ball.y);
+            // ぷるぷる外殻
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
             ctx.beginPath(); ctx.arc(0, 0, ball.radius, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#4a4a4a';
-            ctx.lineWidth = 2; ctx.stroke();
+            // 輪郭
+            ctx.strokeStyle = '#4a4a4a'; ctx.lineWidth = 2; ctx.stroke();
+            // 芯（黒目）
             ctx.fillStyle = '#333333';
             ctx.beginPath(); ctx.arc(0, 0, ball.radius * 0.5, 0, Math.PI * 2); ctx.fill();
+            // 光沢
             ctx.fillStyle = '#ffffff';
             ctx.beginPath(); ctx.arc(-ball.radius * 0.3, -ball.radius * 0.3, ball.radius * 0.15, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
@@ -225,7 +226,9 @@
             handleInput(touch.clientX < window.innerWidth / 2 ? 'left' : 'right', true);
             e.preventDefault();
         }, {passive: false});
-        canvas.addEventListener('touchend', () => { handleInput('left', false); handleInput('right', false); });
+        canvas.addEventListener('touchend', (e) => {
+            if (e.touches.length === 0) { handleInput('left', false); handleInput('right', false); }
+        });
 
         resetBall();
         update();
