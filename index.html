@@ -187,14 +187,32 @@
             ctx.fillStyle = '#218c74';
             ctx.beginPath(); ctx.ellipse(180, 655, 250, 60, 0, 0, Math.PI * 2); ctx.fill();
 
-            // スリング
-            ctx.fillStyle = '#27ae60'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 4;
-            [ {p1:{x:0,y:slingTop}, p2:{x:70,y:flipY}, p3:{x:0,y:flipY}},
-              {p1:{x:360,y:slingTop}, p2:{x:290,y:flipY}, p3:{x:360,y:flipY}}
-            ].forEach(s => {
-                ctx.beginPath(); ctx.moveTo(s.p1.x, s.p1.y); ctx.lineTo(s.p2.x, s.p2.y); ctx.lineTo(s.p3.x, s.p3.y); ctx.closePath(); ctx.fill();
-                ctx.beginPath(); ctx.moveTo(s.p1.x, s.p1.y); ctx.lineTo(s.p2.x, s.p2.y); ctx.stroke();
-            });
+            // スリングショットの描画設定
+ctx.fillStyle = '#44bd32'; // カエルらしい明るい緑
+ctx.strokeStyle = '#ffffff';
+ctx.lineWidth = 5;
+const cornerRadius = 12; // 角の丸み（R）
+
+[ 
+    {p1:{x:0, y:slingTop}, p2:{x:70, y:flipY}, p3:{x:0, y:flipY}, side: 1},
+    {p1:{x:360, y:slingTop}, p2:{x:290, y:flipY}, p3:{x:360, y:flipY}, side: -1}
+].forEach(s => {
+    ctx.beginPath();
+    // 三角形の3つの頂点（p1, p2, p3）を arcTo で繋ぐ
+    ctx.moveTo(s.p1.x, s.p1.y + cornerRadius);
+    ctx.arcTo(s.p1.x, s.p1.y, s.p2.x, s.p2.y, cornerRadius);
+    ctx.arcTo(s.p2.x, s.p2.y, s.p3.x, s.p3.y, cornerRadius);
+    ctx.arcTo(s.p3.x, s.p3.y, s.p1.x, s.p1.y, cornerRadius);
+    ctx.closePath();
+    ctx.fill();
+
+    // 表面（ゴム部分）の白い線だけを描画
+    ctx.beginPath();
+    ctx.moveTo(s.p1.x, s.p1.y);
+    ctx.arcTo(s.p1.x, s.p1.y, s.p2.x, s.p2.y, cornerRadius);
+    ctx.lineTo(s.p2.x, s.p2.y);
+    ctx.stroke();
+});
 
             bumpers.forEach(drawFrogBumper);
             leftFlipper.draw();
