@@ -102,8 +102,8 @@
             ball.vy *= 0.995;
 
             // 壁
-            if (ball.x < ball.radius && ball.y < slingTop) { ball.vx *= -0.5; ball.x = ball.radius; }
-            if (ball.x > canvas.width - ball.radius && ball.y < slingTop) { ball.vx *= -0.5; ball.x = canvas.width - ball.radius; }
+            if (ball.x < ball.radius) { ball.vx *= -0.5; ball.x = ball.radius; }
+            if (ball.x > canvas.width - ball.radius) { ball.vx *= -0.5; ball.x = canvas.width - ball.radius; }
             if (ball.y < ball.radius) { ball.vy *= -0.5; ball.y = ball.radius; }
 
             // バンパー
