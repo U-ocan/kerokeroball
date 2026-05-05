@@ -221,29 +221,29 @@
             bumpers.forEach(drawFrogBumper);
             leftFlipper.draw(); rightFlipper.draw();
             
-            // --- ボールの描画（中心が白くならないように調整） ---
+            // --- ボールの描画（Uさんの指摘箇所を修正） ---
             ctx.save();
             ctx.translate(ball.x, ball.y);
             
-            // 1. 白いベース
+            // 1. 白い殻（土台）
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
             ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
             ctx.fill();
             ctx.strokeStyle = '#333333';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1.5;
             ctx.stroke();
 
-            // 2. 中央の核（色を少し濃いグレーに変更：#555）
-            ctx.fillStyle = '#555555'; 
+            // 2. 芯（黒目）：Uさんの指摘箇所を修正し、色を濃くしました
+            ctx.fillStyle = '#333333'; // 指摘箇所の色をくっきりした濃いグレーに戻しました
             ctx.beginPath();
-            ctx.arc(0, 0, ball.radius * 0.55, 0, Math.PI * 2);
+            ctx.arc(0, 0, ball.radius * 0.5, 0, Math.PI * 2);
             ctx.fill();
 
-            // 3. ハイライト（白い光：端に寄せて核を邪魔しない位置へ）
+            // 3. ハイライト（白い光）：黒目の中央から少しずらして配置
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
-            ctx.arc(-ball.radius * 0.4, -ball.radius * 0.4, ball.radius * 0.15, 0, Math.PI * 2);
+            ctx.arc(-ball.radius * 0.25, -ball.radius * 0.25, ball.radius * 0.12, 0, Math.PI * 2);
             ctx.fill();
             
             ctx.restore();
