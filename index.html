@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KerokeroBall - Alpha Fix</title>
+    <title>KerokeroBall - iPhone 13 mini Fix</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
-        canvas { background: #87ceeb; border: 8px solid #27ae60; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 100%; max-height: 90vh; }
-        #ui { position: absolute; top: 20px; color: white; text-align: center; pointer-events: none; z-index: 10; }
+        /* 枠線を少し細くし、スマホ画面に収まりやすく調整 */
+        canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 95vh; }
+        #ui { position: absolute; top: 15px; color: white; text-align: center; pointer-events: none; z-index: 10; width: 100%; }
     </style>
 </head>
 <body>
     <div id="ui">
-        <h1 style="margin:0">KerokeroBall</h1>
-        <p>透過設定を更新しました</p>
+        <h2 style="margin:0; font-size: 1.2rem;">KerokeroBall</h2>
         <div id="score">Score: 0</div>
     </div>
     <canvas id="gameCanvas"></canvas>
@@ -23,24 +23,23 @@
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
 
-        canvas.width = 400;
-        canvas.height = 600;
+        // iPhone 13 mini 向けサイズ調整
+        canvas.width = 360; 
+        canvas.height = 660; 
 
         const gravity = 0.42; 
         const decay = 0.85;   
         let score = 0;
 
-        // 画像の読み込み設定（Rawリンクに変更）
         const frogImg = new Image();
-        frogImg.crossOrigin = "anonymous"; // クロスドメインエラー防止
+        frogImg.crossOrigin = "anonymous"; 
         frogImg.src = 'https://raw.githubusercontent.com/U-ocan/kerokeroball/main/frog.PNG'; 
 
         let imgLoaded = false;
         frogImg.onload = () => { imgLoaded = true; };
-        frogImg.onerror = () => { console.error("画像読み込み失敗。URLを確認してください。"); };
 
         const ball = {
-            x: 200, y: -50, vx: 2, vy: 0, radius: 15, color: '#ffffff'
+            x: 180, y: -50, vx: 2, vy: 0, radius: 15, color: '#ffffff'
         };
 
         class Flipper {
@@ -65,14 +64,16 @@
             }
         }
 
-        const flipY = 510;
-        const leftFlipper = new Flipper(85, flipY, 100, 0.6, 1);
-        const rightFlipper = new Flipper(315, flipY, 100, -0.6, -1);
+        // フリッパー位置を360幅に合わせて内側へ
+        const flipY = 560; 
+        const leftFlipper = new Flipper(70, flipY, 95, 0.6, 1);
+        const rightFlipper = new Flipper(290, flipY, 95, -0.6, -1);
 
+        // バンパー配置を中央寄せ
         const bumpers = [
-            { x: 100, y: 150, r: 35 },
-            { x: 300, y: 150, r: 35 },
-            { x: 200, y: 280, r: 45 }
+            { x: 90, y: 160, r: 35 },
+            { x: 270, y: 160, r: 35 },
+            { x: 180, y: 300, r: 45 }
         ];
 
         const slingTop = flipY - 105;
@@ -80,11 +81,7 @@
         function drawFrogBumper(b) {
             if (imgLoaded) {
                 const size = b.r * 2.2;
-                ctx.save();
-                // 念のため描画時の合成モードを明示（透過を維持）
-                ctx.globalCompositeOperation = 'source-over';
                 ctx.drawImage(frogImg, b.x - size/2, b.y - size/2, size, size);
-                ctx.restore();
             } else {
                 ctx.fillStyle = '#2ecc71';
                 ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
@@ -92,7 +89,7 @@
         }
 
         function resetBall() {
-            ball.x = 200; ball.y = -30;
+            ball.x = 180; ball.y = -30;
             ball.vx = (Math.random() - 0.5) * 8;
             ball.vy = 2;
         }
@@ -104,6 +101,7 @@
             ball.vx *= 0.998;
             ball.vy *= 0.998;
 
+            // 壁判定を360幅に修正
             if (ball.x < ball.radius && ball.y < slingTop) { ball.vx *= -0.7; ball.x = ball.radius; }
             if (ball.x > canvas.width - ball.radius && ball.y < slingTop) { ball.vx *= -0.7; ball.x = canvas.width - ball.radius; }
             if (ball.y < ball.radius && ball.y > -100) { ball.vy *= -0.7; ball.y = ball.radius; }
@@ -121,11 +119,12 @@
                 }
             });
 
-            const slingshots = [{isLeft:true, x:0}, {isLeft:false, x:400}];
+            // スリングショット判定を360幅に修正
+            const slingshots = [{isLeft:true, x:0}, {isLeft:false, x:360}];
             slingshots.forEach(s => {
                 if (ball.y >= slingTop && ball.y <= flipY) {
                     const progress = (ball.y - slingTop) / (flipY - slingTop);
-                    const slopeX = s.isLeft ? (progress * 85) : 400 - (progress * 85);
+                    const slopeX = s.isLeft ? (progress * 70) : 360 - (progress * 70);
                     if (s.isLeft && ball.x - ball.radius < slopeX) {
                         ball.vx = 10 * decay; ball.vy = -6 * decay; ball.x = slopeX + ball.radius;
                         score += 5;
@@ -171,13 +170,14 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#218c74';
-            ctx.beginPath(); ctx.ellipse(200, 595, 280, 60, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(180, 655, 250, 60, 0, 0, Math.PI * 2); ctx.fill();
 
             ctx.fillStyle = '#27ae60';
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 4;
-            [ {p1:{x:0, y:slingTop}, p2:{x:85, y:flipY}, p3:{x:0, y:flipY}},
-              {p1:{x:400, y:slingTop}, p2:{x:315, y:flipY}, p3:{x:400, y:flipY}}
+            // 360幅に合わせて左右の壁のラインを描画
+            [ {p1:{x:0, y:slingTop}, p2:{x:70, y:flipY}, p3:{x:0, y:flipY}},
+              {p1:{x:360, y:slingTop}, p2:{x:290, y:flipY}, p3:{x:360, y:flipY}}
             ].forEach(s => {
                 ctx.beginPath(); ctx.moveTo(s.p1.x, s.p1.y); ctx.lineTo(s.p2.x, s.p2.y); ctx.lineTo(s.p3.x, s.p3.y); ctx.closePath(); ctx.fill();
                 ctx.beginPath(); ctx.moveTo(s.p1.x, s.p1.y); ctx.lineTo(s.p2.x, s.p2.y); ctx.stroke();
