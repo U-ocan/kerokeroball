@@ -62,10 +62,10 @@
         }
 
         const laneX = 330;
-        const laneTop = 150; // さらに短くし、合流角度を改善
+        const laneTop = 150; 
         const plunger = {
             y: 580, minY: 580, maxY: 640, 
-            isCharging: false, k: 1.5 // バネ定数を1.5倍に強化
+            isCharging: false, k: 1.8 // さらにバネを強化
         };
         
         const flipY = 560; 
@@ -96,18 +96,15 @@
         }
 
         function update() {
-            // プランジャーロジック
             if (plunger.isCharging) {
                 if (plunger.y < plunger.maxY) plunger.y += 2.0; 
             } else {
                 if (plunger.y > plunger.minY) {
                     if (ball.x > laneX && ball.y > plunger.y - 50) {
-                        // 瞬間的な衝撃力を強化
-                        const power = (plunger.y - plunger.minY) * plunger.k + 18;
-                        ball.vy = -power;
+                        ball.vy = -((plunger.y - plunger.minY) * plunger.k + 20); // 初速を底上げ
                         ball.y = plunger.y - ball.radius - 5;
                     }
-                    plunger.y -= 30; // 戻るスピードを上げ、衝撃を強く
+                    plunger.y -= 30; 
                 } else {
                     plunger.y = plunger.minY;
                 }
@@ -224,26 +221,31 @@
             bumpers.forEach(drawFrogBumper);
             leftFlipper.draw(); rightFlipper.draw();
             
-            // --- 最初期デザインのボール（たまご）を復元 ---
+            // --- ボールの描画（たまごデザインを厳密に修正） ---
             ctx.save();
             ctx.translate(ball.x, ball.y);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            
+            // 1. 白い殻（ベース）
+            ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
             ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = '#4a4a4a';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#4A4A4A';
+            ctx.lineWidth = 1.5;
             ctx.stroke();
-            // 核（目玉・黄身の部分）
+
+            // 2. 中央の核（グレーの部分：サイズを少し大きく調整）
             ctx.fillStyle = '#708090';
             ctx.beginPath();
-            ctx.arc(0, 0, ball.radius * 0.5, 0, Math.PI * 2);
+            ctx.arc(0, 0, ball.radius * 0.45, 0, Math.PI * 2);
             ctx.fill();
-            // 瞳孔・ハイライト
-            ctx.fillStyle = '#ffffff';
+
+            // 3. ハイライト（白い光：位置をずらして核と重ならないように調整）
+            ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
-            ctx.arc(-ball.radius * 0.3, -ball.radius * 0.3, ball.radius * 0.15, 0, Math.PI * 2);
+            ctx.arc(-ball.radius * 0.35, -ball.radius * 0.35, ball.radius * 0.12, 0, Math.PI * 2);
             ctx.fill();
+            
             ctx.restore();
         }
 
