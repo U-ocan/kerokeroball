@@ -211,10 +211,41 @@
             leftFlipper.draw();
             rightFlipper.draw();
             
-            ctx.fillStyle = ball.color;
-            ctx.shadowBlur = 15; ctx.shadowColor = "rgba(255,255,255,0.6)";
-            ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2); ctx.fill();
-            ctx.shadowBlur = 0;
+function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // ...（背景やフリッパーの描画はそのまま）...
+
+            // --- カエルのたまごボールの描画 ---
+            ctx.save();
+            ctx.translate(ball.x, ball.y);
+
+            // 1. 外側のぷるぷる層（半透明の白）
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.beginPath();
+            ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 2. 外側の輪郭線（イラストに合わせる場合）
+            ctx.strokeStyle = '#4a4a4a';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 3. 中央の黒目（たまごの芯）
+            ctx.fillStyle = '#333333';
+            ctx.beginPath();
+            ctx.arc(0, 0, ball.radius * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 4. ハイライト（ツヤ出し）
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(-ball.radius * 0.3, -ball.radius * 0.3, ball.radius * 0.15, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+            // ----------------------------------
+
+            // ...（他の描画処理）...
         }
 
         const handleInput = (side, active) => {
