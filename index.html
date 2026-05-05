@@ -63,7 +63,19 @@
                 ctx.restore();
             }
         }
+// --- プランジャー・レーン設定 ---
+const laneX = 330; // レーンの左側の壁のX座標
+const plunger = {
+    y: 600, 
+    minY: 600, 
+    maxY: 640, 
+    isCharging: false, 
+    power: 0,
+    k: 0.28 // バネの強さ（やや弱め）
+};
 
+// 既存の変数（この付近に挿入してください）
+        
         const flipY = 560; 
         const leftFlipper = new Flipper(70, flipY, 95, 0.6, 1);
         const rightFlipper = new Flipper(290, flipY, 95, -0.6, -1);
@@ -87,13 +99,34 @@
         }
 
         function resetBall() {
-            ball.x = 180;
-            ball.y = 20; // 画面内に配置
-            ball.vx = (Math.random() - 0.5) * 6;
-            ball.vy = 2;
-        }
+    ball.x = 345; // レーンの中央（laneX:330 + 余白）
+    ball.y = 580; // プランジャーの少し上
+    ball.vx = 0;
+    ball.vy = 0;
+}
 
-        function update() {
+            function update() {
+            // --- プランジャーのチャージ＆発射ロジック ---
+            if (plunger.isCharging) {
+                // スペースキー押下中：ゆっくりバネを縮める
+                if (plunger.y < plunger.maxY) plunger.y += 1.5; 
+            } else {
+                // キーを離した瞬間：バネが戻る
+                if (plunger.y > plunger.minY) {
+                    // ボールがプランジャー付近にいる場合、上方向の速度を与える
+                    if (ball.x > laneX && ball.y > plunger.y - 40) {
+                        // (沈み込んだ量 * 係数) でパワーを決定
+                        ball.vy = -(plunger.y - plunger.minY) * plunger.k * 3.5;
+                        // 横方向の微かな揺らぎ（自然に見せるため）
+                        ball.vx = (Math.random() - 0.5) * 1;
+                    }
+                    plunger.y -= 15; // 素早く元の位置に戻る
+                } else {
+                    plunger.y = plunger.minY; // 完全に元に戻す
+                }
+            }
+
+            // 以下、既存の物理計算
             ball.vy += gravity;
             ball.x += ball.vx;
             ball.y += ball.vy;
@@ -105,7 +138,14 @@
             if (ball.x < ball.radius) { ball.vx *= -0.5; ball.x = ball.radius; }
             if (ball.x > canvas.width - ball.radius) { ball.vx *= -0.5; ball.x = canvas.width - ball.radius; }
             if (ball.y < ball.radius) { ball.vy *= -0.5; ball.y = ball.radius; }
-
+// 右レーンの内壁判定（上部100px以外を壁にする）
+            if (ball.y > 100) {
+                if (ball.x > laneX - ball.radius && ball.x < laneX + 5) {
+                    ball.vx = -Math.abs(ball.vx) * 0.5; // 左へ跳ね返す
+                    ball.x = laneX - ball.radius;
+                }
+            }
+                
             // バンパー
             bumpers.forEach(b => {
                 const dx = ball.x - b.x; const dy = ball.y - b.y;
@@ -187,6 +227,35 @@
             ctx.fillStyle = '#218c74';
             ctx.beginPath(); ctx.ellipse(180, 655, 250, 60, 0, 0, Math.PI * 2); ctx.fill();
 
+// --- ★ここにプランジャーとレーンを追記★ ---
+            
+            // 1. レーンの内壁（仕切り）の描画
+            ctx.strokeStyle = '#27ae60';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(laneX, canvas.height);
+            ctx.lineTo(laneX, 100); // y=100まで壁を作る
+            ctx.stroke();
+
+            // 2. プランジャー本体（押し板）の描画
+            ctx.fillStyle = '#7f8c8d'; // 金属っぽいグレー
+            ctx.fillRect(laneX + 5, plunger.y, 25, 12); 
+
+            // 3. バネの描画（ジグザグ線）
+            ctx.strokeStyle = '#bdc3c7';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(laneX + 17.5, plunger.y + 12);
+            for (let i = 1; i <= 8; i++) {
+                // ジグザグに線を引きながら下へ伸ばす
+                const springX = laneX + 17.5 + (i % 2 === 0 ? 8 : -8);
+                const springY = plunger.y + 12 + (i * (canvas.height - plunger.y) / 8);
+                ctx.lineTo(springX, springY);
+            }
+            ctx.stroke();
+
+            // --- ★追記ここまで★ ---
+            
            // --- スリングショット描画（精密調整版） ---
 const slingColor = '#2ecc71'; // 黄味を抑えた鮮やかなエメラルドグリーン
 const rubberColor = '#ffffff'; 
@@ -272,6 +341,19 @@ const cornerRadius = 15;
 
         window.addEventListener('keyup', e => {
             // 離したキーに応じて、対応するフリッパーだけを下げる
+            if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', false);
+            if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', false);
+        });
+
+        // キーボード操作
+        window.addEventListener('keydown', e => {
+            if (e.code === 'Space') plunger.isCharging = true; // 追加
+            if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', true);
+            if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', true);
+        });
+
+        window.addEventListener('keyup', e => {
+            if (e.code === 'Space') plunger.isCharging = false; // 追加
             if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', false);
             if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', false);
         });
