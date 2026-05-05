@@ -119,21 +119,25 @@
                 }
             });
 
-            // 3. スリングショット（判定を「面」に強化し、境目を埋める）
+           // --- スリングショット判定ロジックの修正版 ---
+
             const slingshots = [{isLeft:true, x:0}, {isLeft:false, x:360}];
             slingshots.forEach(s => {
-                if (ball.y >= slingTop - 10 && ball.y <= flipY + 5) { // 判定を上下に広げる
+                // 判定を上下に広げて境目をカバー
+                if (ball.y >= slingTop - 10 && ball.y <= flipY + 5) {
                     const progress = (ball.y - slingTop) / (flipY - slingTop);
-                    const slopeX = s.isLeft ? (progress * 75) : 360 - (progress * 75); // 少し内側まで判定
+                    const slopeX = s.isLeft ? (progress * 75) : 360 - (progress * 75);
                     
                     if (s.isLeft && ball.x - ball.radius < slopeX) {
-                        ball.vx = Math.abs(ball.vx) + 7; // 反発力を保証
-                        ball.vy = -5;
+                        // 【修正】真横ではなく、斜め上(vy < 0)に飛ばす力を強化
+                        ball.vx = 6 + Math.random() * 2; // 右方向
+                        ball.vy = -7 - Math.random() * 3; // 上方向への逃げ
                         ball.x = slopeX + ball.radius + 2; 
                         score += 5;
                     } else if (!s.isLeft && ball.x + ball.radius > slopeX) {
-                        ball.vx = -Math.abs(ball.vx) - 7;
-                        ball.vy = -5;
+                        // 【修正】左斜め上へ飛ばす
+                        ball.vx = -6 - Math.random() * 2; // 左方向
+                        ball.vy = -7 - Math.random() * 3; // 上方向への逃げ
                         ball.x = slopeX - ball.radius - 2;
                         score += 5;
                     }
