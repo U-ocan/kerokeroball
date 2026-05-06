@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>KerokeroBall - Fixed</title>
+    <title>KerokeroBall - Score Pop Edition</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; }
@@ -25,8 +25,9 @@
         canvas.width = 360; 
         canvas.height = 660; 
 
-        const gravity = 0.48; 
+        const gravity = 0.42; 
         let score = 0;
+        let floatingTexts = []; // 浮遊スコアを管理する配列
 
         const frogImg = new Image();
         frogImg.crossOrigin = "anonymous"; 
@@ -36,6 +37,34 @@
         frogImg.onload = () => { imgLoaded = true; };
 
         const ball = { x: 342, y: 560, vx: 0, vy: 0, radius: 14, isLocked: true };
+
+        // 浮遊スコアテキストのクラス
+        class FloatingText {
+            constructor(x, y, text) {
+                this.x = x;
+                this.y = y;
+                this.text = text;
+                this.life = 1.0; // 1.0(出現) -> 0.0(消滅)
+                this.vY = -1.5;  // 上昇速度
+                this.scale = 0.5; // 最初は小さく
+            }
+            update() {
+                this.y += this.vY;
+                this.life -= 0.02; // 消えていく速度
+                if (this.scale < 1.2) this.scale += 0.1; // ポップアップ演出
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = "#ffffff";
+                ctx.font = `bold ${24 * this.scale}px sans-serif`;
+                ctx.textAlign = "center";
+                ctx.shadowColor = "rgba(0,0,0,0.5)";
+                ctx.shadowBlur = 4;
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.restore();
+            }
+        }
 
         class Flipper {
             constructor(x, y, length, angle, side) {
@@ -47,7 +76,7 @@
             }
             update() {
                 this.prevAngle = this.angle;
-                this.angle += (this.targetAngle - this.angle) * 0.42;
+                this.angle += (this.targetAngle - this.angle) * 0.45;
             }
             draw() {
                 ctx.save();
@@ -65,7 +94,7 @@
         const laneExitY = 120; 
         const plunger = {
             y: 585, minY: 585, maxY: 645, 
-            isCharging: false, k: 3.5 
+            isCharging: false, k: 3.8 
         };
         
         const flipY = 560; 
@@ -73,9 +102,9 @@
         const rightFlipper = new Flipper(255, flipY, 95, -0.6, -1);
 
         const bumpers = [
-            { x: 90, y: 180, r: 35 },
-            { x: 250, y: 180, r: 35 },
-            { x: 170, y: 320, r: 45 }
+            { x: 80, y: 180, r: 35, scale: 1.0 },
+            { x: 240, y: 180, r: 35, scale: 1.0 },
+            { x: 160, y: 320, r: 45, scale: 1.0 }
         ];
 
         const slingTop = flipY - 105;
@@ -89,16 +118,12 @@
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // 背景の装飾
             ctx.fillStyle = '#218c74';
             ctx.beginPath(); ctx.ellipse(180, 655, 250, 60, 0, 0, Math.PI * 2); ctx.fill();
 
-            // レーン
             ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 8; ctx.lineCap = 'round';
             ctx.beginPath(); ctx.moveTo(laneX, canvas.height); ctx.lineTo(laneX, laneExitY); ctx.stroke();
 
-            // プランジャー
             ctx.fillStyle = '#7f8c8d'; ctx.fillRect(laneX + 5, plunger.y, 25, 12); 
             ctx.strokeStyle = '#bdc3c7'; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.moveTo(laneX + 17.5, plunger.y + 12);
@@ -107,7 +132,6 @@
             }
             ctx.stroke();
 
-            // スリングショット
             const slingData = [
                 {p1:{x:0, y:slingTop}, p2:{x:70, y:flipY}, p3:{x:0, y:flipY}},
                 {p1:{x:laneX-15, y:slingTop}, p2:{x:250, y:flipY}, p3:{x:laneX-15, y:flipY}}
@@ -119,20 +143,30 @@
                 ctx.beginPath(); ctx.moveTo(s.p1.x, s.p1.y + 5); ctx.lineTo(s.p2.x, s.p2.y - 5); ctx.stroke();
             });
 
-            // バンパー
             bumpers.forEach(b => {
+                ctx.save();
+                ctx.translate(b.x, b.y);
+                ctx.scale(b.scale, b.scale);
                 if (imgLoaded) {
                     const size = b.r * 2.2;
-                    ctx.drawImage(frogImg, b.x - size/2, b.y - size/2, size, size);
+                    ctx.drawImage(frogImg, -size/2, -size/2, size, size);
                 } else {
                     ctx.fillStyle = '#2ecc71';
-                    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(0, 0, b.r, 0, Math.PI * 2); ctx.fill();
                 }
+                ctx.restore();
+                b.scale += (1.0 - b.scale) * 0.15;
             });
             
             leftFlipper.draw(); rightFlipper.draw();
 
-            // ボール
+            // 浮遊テキストの更新と描画
+            floatingTexts = floatingTexts.filter(t => t.life > 0);
+            floatingTexts.forEach(t => {
+                t.update();
+                t.draw();
+            });
+
             ctx.save(); ctx.translate(ball.x, ball.y); ctx.fillStyle = '#FFFFFF';
             ctx.beginPath(); ctx.arc(0, 0, ball.radius, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.stroke();
@@ -147,7 +181,7 @@
             } else {
                 if (plunger.y > plunger.minY) {
                     if (ball.isLocked) {
-                        const power = (plunger.y - plunger.minY) * plunger.k + 20;
+                        const power = (plunger.y - plunger.minY) * plunger.k + 22;
                         ball.vy = -power;
                         ball.isLocked = false;
                     }
@@ -159,41 +193,45 @@
                 ball.vy += gravity;
                 ball.x += ball.vx;
                 ball.y += ball.vy;
-                ball.vx *= 0.985;
-                ball.vy *= 0.985;
+                ball.vx *= 0.992;
+                ball.vy *= 0.992;
             }
 
-            // 外壁衝突
-            if (ball.x < ball.radius) { ball.vx *= -0.4; ball.x = ball.radius; }
-            if (ball.x > canvas.width - ball.radius) { ball.vx *= -0.4; ball.x = canvas.width - ball.radius; }
-            if (ball.y < ball.radius) { ball.vy *= -0.3; ball.y = ball.radius; }
+            if (ball.x < ball.radius) { ball.vx *= -0.5; ball.x = ball.radius; }
+            if (ball.x > canvas.width - ball.radius) { ball.vx *= -0.5; ball.x = canvas.width - ball.radius; }
+            if (ball.y < ball.radius) { ball.vy *= -0.4; ball.y = ball.radius; }
 
-            // レーン判定
             if (ball.x > laneX - 10) {
                 if (ball.y < laneExitY) {
-                    if (ball.vx >= 0) { ball.vx = -7; ball.vy = -3; }
+                    if (ball.vx >= 0) { ball.vx = -8; ball.vy = -4; }
                 } else {
                     if (ball.x < laneX + ball.radius) {
                         ball.x = laneX + ball.radius; ball.vx = 0;
                     }
                 }
             } else if (ball.y > laneExitY && ball.x > laneX - 25) {
-                ball.x = laneX - 25; ball.vx *= -0.4;
+                ball.x = laneX - 25; ball.vx *= -0.5;
             }
 
-            // バンパー衝突
             bumpers.forEach(b => {
                 const dx = ball.x - b.x; const dy = ball.y - b.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist < ball.radius + b.r) {
                     const angle = Math.atan2(dy, dx);
-                    ball.vx = Math.cos(angle) * 10; ball.vy = Math.sin(angle) * 10;
-                    score += 10; scoreEl.innerText = `Score: ${score}`;
+                    const bPower = 11;
+                    ball.vx = Math.cos(angle) * bPower; ball.vy = Math.sin(angle) * bPower;
+                    
+                    // スコア更新と浮遊テキスト追加
+                    const points = 10;
+                    score += points; 
+                    scoreEl.innerText = `Score: ${score}`;
+                    floatingTexts.push(new FloatingText(b.x, b.y - 20, `+${points}`));
+                    
                     ball.x = b.x + Math.cos(angle) * (ball.radius + b.r + 1);
+                    b.scale = 1.3; 
                 }
             });
 
-            // スリングショット衝突
             const slings = [
                 {x1: 0, y1: slingTop, x2: 70, y2: flipY, isLeft: true},
                 {x1: laneX - 15, y1: slingTop, x2: 250, y2: flipY, isLeft: false}
@@ -205,18 +243,22 @@
                     const isInside = s.isLeft ? (ball.x - ball.radius < edgeX) : (ball.x + ball.radius > edgeX && ball.x < laneX - 15);
                     if (isInside) {
                         const speed = Math.sqrt(ball.vx**2 + ball.vy**2);
-                        if (speed > 1.5) {
+                        if (speed > 1.2) {
                             const variation = (Math.random() - 0.5) * 2;
-                            ball.vx = s.isLeft ? (7 + variation) : (-7 + variation);
-                            ball.vy = -7 - Math.random() * 3;
-                            score += 5; scoreEl.innerText = `Score: ${score}`;
-                        } else { ball.vx *= 0.7; }
+                            ball.vx = s.isLeft ? (8 + variation) : (-8 + variation);
+                            ball.vy = -8 - Math.random() * 3;
+                            
+                            // スリングショットでもスコア表示
+                            const sPoints = 5;
+                            score += sPoints; 
+                            scoreEl.innerText = `Score: ${score}`;
+                            floatingTexts.push(new FloatingText(ball.x, ball.y, `+${sPoints}`));
+                        } else { ball.vx *= 0.8; }
                         ball.x = s.isLeft ? (edgeX + ball.radius + 2) : (edgeX - ball.radius - 2);
                     }
                 }
             });
 
-            // フリッパー衝突
             [leftFlipper, rightFlipper].forEach(f => {
                 f.update();
                 const dx = ball.x - f.x; const dy = ball.y - f.y;
@@ -226,10 +268,10 @@
                 if (rx * f.side > -5 && rx * f.side < f.length + 5 && Math.abs(ry) < ball.radius + halfThick) {
                     const isFlipping = Math.abs(f.angle - f.prevAngle) > 0.01;
                     if (isFlipping) {
-                        const hitPower = 17;
+                        const hitPower = 19;
                         ball.vx = Math.sin(f.angle) * hitPower * f.side;
                         ball.vy = -Math.cos(f.angle) * hitPower;
-                    } else { ball.vx *= 0.6; ball.vy *= 0.4; }
+                    } else { ball.vx *= 0.7; ball.vy *= 0.5; }
                     const pushY = (ry > 0 ? 1 : -1) * (ball.radius + halfThick + 1);
                     ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
                     ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
@@ -244,7 +286,6 @@
             requestAnimationFrame(update);
         }
 
-        // 入力処理
         const handleInput = (side, active) => {
             if (side === 'left') leftFlipper.targetAngle = active ? -0.6 : 0.6;
             if (side === 'right') rightFlipper.targetAngle = active ? 0.6 : -0.6;
@@ -278,7 +319,6 @@
             handleInput('left', false); handleInput('right', false);
         }, {passive: false});
 
-        // 実行開始
         resetBall();
         update();
     </script>
