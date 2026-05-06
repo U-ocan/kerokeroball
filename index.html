@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>KerokeroBall - Mild Edition</title>
+    <style>
+        body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
+        canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; margin-top: 30px; }
+        #ui { position: absolute; top: 45px; color: white; text-align: center; pointer-events: none; z-index: 10; width: 100%; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <h2 style="margin:0; font-size: 1.2rem;">KerokeroBall</h2>
+        <div id="score">Score: 0</div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+
+        canvas.width = 360; 
+        canvas.height = 660; 
+
+        const gravity = 0.42; // 重力を少しだけ軽減
+        let score = 0;
+
+        const frogImg = new Image();
+        frogImg.crossOrigin = "anonymous"; 
+        frogImg.src = 'https://raw.githubusercontent.com/U-ocan/kerokeroball/main/frog.PNG'; 
+
+        let imgLoaded = false;
+        frogImg.onload = () => { imgLoaded = true; };
+
+        const ball = { x: 345, y: 520, vx: 0, vy: 0, radius: 16 };
+
+        class Flipper {
+            constructor(x, y, length, angle, side) {
+                this.x = x; this.y = y; this.length = length;
+                this.baseAngle = angle; this.angle = angle;
+                this.side = side;
+                this.targetAngle = angle;
+                this.prevAngle = angle;
+            }
+            update() {
+                this.prevAngle = this.angle;
+                this.angle += (this.targetAngle - this.angle) * 0.4; // 反応を少しだけマイルドに
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+                ctx.fillStyle = '#27ae60';
+                ctx.beginPath();
+                ctx.roundRect(0, -8, this.length * this.side, 16, 8);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        const laneX = 330;
+        const laneCurveStart = 110; 
+        const plunger = {
+            y: 580, minY: 580, maxY: 640, 
+            isCharging: false, k: 2.2 
+        };
+        
+        const flipY = 560; 
+        const leftFlipper = new Flipper(70, flipY, 95, 0.6, 1);
+        const rightFlipper = new Flipper(260, flipY, 95, -0.6, -1);
+
+        const bumpers = [
+            { x: 90, y: 165, r: 35 },
+            { x: 270, y: 165, r: 35 },
+            { x: 180, y: 305, r: 45 }
+        ];
+
+        const slingTop = flipY - 105;
+
+        function drawFrogBumper(b) {
+            if (imgLoaded) {
+                const size = b.r * 2.2;
+                ctx.drawImage(frogImg, b.x - size/2, b.y - size/2, size, size);
+            } else {
+                ctx.fillStyle = '#2ecc71';
+                ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        function resetBall() {
+            ball.x = 345; ball.y = plunger.minY - ball.radius - 2;
+            ball.vx = 0; ball.vy = 0;
+        }
+
+        function update() {
+            if (plunger.isCharging) {
+                if (plunger.y < plunger.maxY) plunger.y += 2.5; 
+            } else {
+                if (plunger.y > plunger.minY) {
+                    if (ball.x > laneX && ball.y > plunger.y - 50) {
+                        const power = (plunger.y - plunger.minY) * plunger.k + 22;
+                        ball.vy = -power;
+                        ball.y = plunger.y - ball.radius - 5;
+                    }
+                    plunger.y -= 40; 
+                } else {
+                    plunger.y = plunger.minY;
+                }
+            }
+
+            ball.vy += gravity;
+            ball.x += ball.vx;
+            ball.y += ball.vy;
+            ball.vx *= 0.99; // 摩擦を少し強めて暴走を防止
+            ball.vy *= 0.99;
+
+            if (ball.x < ball.radius) { ball.vx *= -0.5; ball.x = ball.radius; }
+            
+            // --- レーン（右側通路）の物理判定強化 ---
+            if (ball.y > laneCurveStart) {
+                // ボールが右レーン内にいる場合
+                if (ball.x > laneX - ball.radius) {
+                    // 右端の壁
+                    if (ball.x > canvas.width - ball.radius) {
+                        ball.vx *= -0.5;
+                        ball.x = canvas.width - ball.radius;
+                    }
+                    // 左側の仕切り壁（レーンからプレイゾーンへのはみ出し防止）
+                    if (ball.x < laneX + ball.radius && ball.vx < 0) {
+                        ball.vx *= -0.2;
+                        ball.x = laneX + ball.radius;
+                    }
+                } else {
+                    // ボールがプレイゾーンにいる場合、レーンへの逆流を防止
+                    if (ball.x > laneX - ball.radius && ball.vx > 0) {
+                        ball.vx *= -0.5;
+                        ball.x = laneX - ball.radius;
+                    }
+                }
+            } else {
+                // カーブエリア（上部）の誘導
+                if (ball.x > laneX - 40) {
+                    ball.vx -= 0.6; // マイルドな左誘導
+                }
+            }
+
+            if (ball.y < ball.radius) { ball.vy *= -0.5; ball.y = ball.radius; }
+
+            bumpers.forEach(b => {
+                const dx = ball.x - b.x; const dy = ball.y - b.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < ball.radius + b.r) {
+                    const angle = Math.atan2(dy, dx);
+                    ball.vx = Math.cos(angle) * 8; // 反発をマイルドに (12 -> 8)
+                    ball.vy = Math.sin(angle) * 8;
+                    score += 10; scoreEl.innerText = `Score: ${score}`;
+                    ball.x = b.x + Math.cos(angle) * (ball.radius + b.r + 2);
+                    ball.y = b.y + Math.sin(angle) * (ball.radius + b.r + 2);
+                }
+            });
+
+            const slingshots = [{isLeft:true}, {isLeft:false}];
+            slingshots.forEach(s => {
+                if (ball.y >= slingTop && ball.y <= flipY) {
+                    const progress = (ball.y - slingTop) / (flipY - slingTop);
+                    const slopeX = s.isLeft ? (progress * 70) : (laneX - (progress * 70));
+                    if (s.isLeft && ball.x - ball.radius < slopeX) {
+                        ball.vx = 7; ball.vy = -9; ball.x = slopeX + ball.radius + 2; 
+                        score += 5; scoreEl.innerText = `Score: ${score}`;
+                    } else if (!s.isLeft && ball.x + ball.radius > slopeX && ball.x < laneX) {
+                        ball.vx = -7; ball.vy = -9; ball.x = slopeX - ball.radius - 2;
+                        score += 5; scoreEl.innerText = `Score: ${score}`;
+                    }
+                }
+            });
+
+            [leftFlipper, rightFlipper].forEach(f => {
+                f.update();
+                const dx = ball.x - f.x; const dy = ball.y - f.y;
+                const cos = Math.cos(-f.angle); const sin = Math.sin(-f.angle);
+                const rx = dx * cos - dy * sin; const ry = dx * sin + dy * cos;
+                const isFlipping = Math.abs(f.angle - f.prevAngle) > 0.005;
+                if (rx * f.side > -15 && rx * f.side < f.length + 10 && Math.abs(ry) < ball.radius + 15) {
+                    if (isFlipping) {
+                        ball.vy = -16 * Math.cos(f.angle); // フリップ力をマイルドに (21 -> 16)
+                        ball.vx = 16 * Math.sin(f.angle) * f.side;
+                        ball.y = f.y - 35; 
+                    } else {
+                        ball.vx *= 0.8; ball.vy *= 0.8;
+                        ball.vx += Math.cos(f.angle) * 0.5 * f.side;
+                        ball.vy += Math.sin(f.angle) * 0.5;
+                    }
+                }
+            });
+
+            if (ball.y > canvas.height + 100) {
+                score = 0; scoreEl.innerText = `Score: ${score}`;
+                resetBall();
+            }
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#218c74';
+            ctx.beginPath(); ctx.ellipse(180, 655, 250, 60, 0, 0, Math.PI * 2); ctx.fill();
+
+            // レーンの仕切り壁を視覚化（デバッグ兼ねて少しだけ描画）
+            ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 6; 
+            ctx.beginPath();
+            ctx.moveTo(laneX, canvas.height);
+            ctx.lineTo(laneX, laneCurveStart); 
+            ctx.quadraticCurveTo(laneX, 20, laneX - 80, 10); 
+            ctx.stroke();
+
+            ctx.fillStyle = '#7f8c8d'; ctx.fillRect(laneX + 5, plunger.y, 25, 12); 
+
+            ctx.strokeStyle = '#bdc3c7'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(laneX + 17.5, plunger.y + 12);
+            const segments = 12;
+            const h = canvas.height - (plunger.y + 12);
+            for (let i = 1; i <= segments; i++) {
+                ctx.lineTo(laneX + 17.5 + (i % 2 === 0 ? 8 : -8), plunger.y + 12 + (i * h / segments));
+            }
+            ctx.stroke();
+
+            const slingData = [
+                {p1:{x:0, y:slingTop}, p2:{x:70, y:flipY}, p3:{x:0, y:flipY}},
+                {p1:{x:laneX, y:slingTop}, p2:{x:260, y:flipY}, p3:{x:laneX, y:flipY}}
+            ];
+            slingData.forEach(s => {
+                ctx.fillStyle = '#2ecc71'; ctx.beginPath();
+                ctx.moveTo(s.p1.x, s.p1.y); ctx.lineTo(s.p2.x, s.p2.y); ctx.lineTo(s.p3.x, s.p3.y); ctx.fill();
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+                ctx.beginPath(); ctx.moveTo(s.p1.x, s.p1.y + 5); ctx.lineTo(s.p2.x, s.p2.y - 5); ctx.stroke();
+            });
+
+            bumpers.forEach(drawFrogBumper);
+            leftFlipper.draw(); rightFlipper.draw();
+            
+            // ボール描画（核の色: #708090）
+            ctx.save();
+            ctx.translate(ball.x, ball.y);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath(); ctx.arc(0, 0, ball.radius, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.fillStyle = '#708090'; 
+            ctx.beginPath(); ctx.arc(0, 0, ball.radius * 0.5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath(); ctx.arc(-ball.radius * 0.3, -ball.radius * 0.3, ball.radius * 0.15, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+        }
+
+        const handleInput = (side, active) => {
+            if (side === 'left') leftFlipper.targetAngle = active ? -0.6 : 0.6;
+            if (side === 'right') rightFlipper.targetAngle = active ? 0.6 : -0.6;
+        };
+
+        window.addEventListener('keydown', e => {
+            if (e.code === 'Space') plunger.isCharging = true;
+            if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', true);
+            if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', true);
+        });
+
+        window.addEventListener('keyup', e => {
+            if (e.code === 'Space') plunger.isCharging = false;
+            if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', false);
+            if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', false);
+        });
+
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault();
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                const rect = canvas.getBoundingClientRect();
+                const tx = (touch.clientX - rect.left) * (canvas.width / rect.width);
+                if (tx > laneX) plunger.isCharging = true;
+                else handleInput(touch.clientX < window.innerWidth / 2 ? 'left' : 'right', true);
+            }
+        }, {passive: false});
+
+        canvas.addEventListener('touchend', e => {
+            e.preventDefault();
+            if (e.touches.length === 0) {
+                plunger.isCharging = false;
+                handleInput('left', false); handleInput('right', false);
+            } else {
+                let l = false, r = false;
+                for (let i = 0; i < e.touches.length; i++) {
+                    if (e.touches[i].clientX < window.innerWidth / 2) l = true; else r = true;
+                }
+                if (!l) handleInput('left', false); if (!r) handleInput('right', false);
+            }
+        }, {passive: false});
+
+        resetBall();
+        update();
+    </script>
+</body>
+</html>
