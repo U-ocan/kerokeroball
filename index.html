@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>KerokeroBall - Final Stable</title>
+    <title>KerokeroBall - Mild Edition</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; margin-top: 30px; }
@@ -25,7 +25,7 @@
         canvas.width = 360; 
         canvas.height = 660; 
 
-        const gravity = 0.45; 
+        const gravity = 0.42; // 重力を少しだけ軽減
         let score = 0;
 
         const frogImg = new Image();
@@ -47,7 +47,7 @@
             }
             update() {
                 this.prevAngle = this.angle;
-                this.angle += (this.targetAngle - this.angle) * 0.45;
+                this.angle += (this.targetAngle - this.angle) * 0.4; // 反応を少しだけマイルドに
             }
             draw() {
                 ctx.save();
@@ -62,10 +62,10 @@
         }
 
         const laneX = 330;
-        const laneCurveStart = 100; 
+        const laneCurveStart = 110; 
         const plunger = {
             y: 580, minY: 580, maxY: 640, 
-            isCharging: false, k: 2.5 
+            isCharging: false, k: 2.2 
         };
         
         const flipY = 560; 
@@ -101,7 +101,7 @@
             } else {
                 if (plunger.y > plunger.minY) {
                     if (ball.x > laneX && ball.y > plunger.y - 50) {
-                        const power = (plunger.y - plunger.minY) * plunger.k + 25;
+                        const power = (plunger.y - plunger.minY) * plunger.k + 22;
                         ball.vy = -power;
                         ball.y = plunger.y - ball.radius - 5;
                     }
@@ -114,31 +114,48 @@
             ball.vy += gravity;
             ball.x += ball.vx;
             ball.y += ball.vy;
-            ball.vx *= 0.995;
-            ball.vy *= 0.995;
+            ball.vx *= 0.99; // 摩擦を少し強めて暴走を防止
+            ball.vy *= 0.99;
 
             if (ball.x < ball.radius) { ball.vx *= -0.5; ball.x = ball.radius; }
-            if (ball.x > canvas.width - ball.radius) { ball.vx *= -0.5; ball.x = canvas.width - ball.radius; }
-            if (ball.y < ball.radius) { ball.vy *= -0.5; ball.y = ball.radius; }
-
-            // レーン上部のカーブ物理挙動
-            if (ball.x > laneX - ball.radius) {
-                if (ball.y < laneCurveStart + 50) {
-                    ball.vx -= 1.3; // 左へ押し出す力を強化
+            
+            // --- レーン（右側通路）の物理判定強化 ---
+            if (ball.y > laneCurveStart) {
+                // ボールが右レーン内にいる場合
+                if (ball.x > laneX - ball.radius) {
+                    // 右端の壁
+                    if (ball.x > canvas.width - ball.radius) {
+                        ball.vx *= -0.5;
+                        ball.x = canvas.width - ball.radius;
+                    }
+                    // 左側の仕切り壁（レーンからプレイゾーンへのはみ出し防止）
+                    if (ball.x < laneX + ball.radius && ball.vx < 0) {
+                        ball.vx *= -0.2;
+                        ball.x = laneX + ball.radius;
+                    }
+                } else {
+                    // ボールがプレイゾーンにいる場合、レーンへの逆流を防止
+                    if (ball.x > laneX - ball.radius && ball.vx > 0) {
+                        ball.vx *= -0.5;
+                        ball.x = laneX - ball.radius;
+                    }
                 }
-                if (ball.y > plunger.minY - ball.radius && ball.x > laneX) {
-                    ball.y = plunger.minY - ball.radius;
-                    ball.vy = 0; ball.vx = 0;
+            } else {
+                // カーブエリア（上部）の誘導
+                if (ball.x > laneX - 40) {
+                    ball.vx -= 0.6; // マイルドな左誘導
                 }
             }
-                
+
+            if (ball.y < ball.radius) { ball.vy *= -0.5; ball.y = ball.radius; }
+
             bumpers.forEach(b => {
                 const dx = ball.x - b.x; const dy = ball.y - b.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist < ball.radius + b.r) {
                     const angle = Math.atan2(dy, dx);
-                    ball.vx = Math.cos(angle) * 12;
-                    ball.vy = Math.sin(angle) * 12;
+                    ball.vx = Math.cos(angle) * 8; // 反発をマイルドに (12 -> 8)
+                    ball.vy = Math.sin(angle) * 8;
                     score += 10; scoreEl.innerText = `Score: ${score}`;
                     ball.x = b.x + Math.cos(angle) * (ball.radius + b.r + 2);
                     ball.y = b.y + Math.sin(angle) * (ball.radius + b.r + 2);
@@ -149,12 +166,12 @@
             slingshots.forEach(s => {
                 if (ball.y >= slingTop && ball.y <= flipY) {
                     const progress = (ball.y - slingTop) / (flipY - slingTop);
-                    const slopeX = s.isLeft ? (progress * 70) : (330 - (progress * 70));
+                    const slopeX = s.isLeft ? (progress * 70) : (laneX - (progress * 70));
                     if (s.isLeft && ball.x - ball.radius < slopeX) {
-                        ball.vx = 9; ball.vy = -11; ball.x = slopeX + ball.radius + 2; 
+                        ball.vx = 7; ball.vy = -9; ball.x = slopeX + ball.radius + 2; 
                         score += 5; scoreEl.innerText = `Score: ${score}`;
                     } else if (!s.isLeft && ball.x + ball.radius > slopeX && ball.x < laneX) {
-                        ball.vx = -9; ball.vy = -11; ball.x = slopeX - ball.radius - 2;
+                        ball.vx = -7; ball.vy = -9; ball.x = slopeX - ball.radius - 2;
                         score += 5; scoreEl.innerText = `Score: ${score}`;
                     }
                 }
@@ -168,13 +185,13 @@
                 const isFlipping = Math.abs(f.angle - f.prevAngle) > 0.005;
                 if (rx * f.side > -15 && rx * f.side < f.length + 10 && Math.abs(ry) < ball.radius + 15) {
                     if (isFlipping) {
-                        ball.vy = -21 * Math.cos(f.angle);
-                        ball.vx = 21 * Math.sin(f.angle) * f.side;
+                        ball.vy = -16 * Math.cos(f.angle); // フリップ力をマイルドに (21 -> 16)
+                        ball.vx = 16 * Math.sin(f.angle) * f.side;
                         ball.y = f.y - 35; 
                     } else {
-                        ball.vx *= 0.85; ball.vy *= 0.85;
-                        ball.vx += Math.cos(f.angle) * 0.6 * f.side;
-                        ball.vy += Math.sin(f.angle) * 0.6;
+                        ball.vx *= 0.8; ball.vy *= 0.8;
+                        ball.vx += Math.cos(f.angle) * 0.5 * f.side;
+                        ball.vy += Math.sin(f.angle) * 0.5;
                     }
                 }
             });
@@ -192,7 +209,7 @@
             ctx.fillStyle = '#218c74';
             ctx.beginPath(); ctx.ellipse(180, 655, 250, 60, 0, 0, Math.PI * 2); ctx.fill();
 
-            // レーンと上部カーブ
+            // レーンの仕切り壁を視覚化（デバッグ兼ねて少しだけ描画）
             ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 6; 
             ctx.beginPath();
             ctx.moveTo(laneX, canvas.height);
@@ -213,7 +230,7 @@
 
             const slingData = [
                 {p1:{x:0, y:slingTop}, p2:{x:70, y:flipY}, p3:{x:0, y:flipY}},
-                {p1:{x:330, y:slingTop}, p2:{x:260, y:flipY}, p3:{x:330, y:flipY}}
+                {p1:{x:laneX, y:slingTop}, p2:{x:260, y:flipY}, p3:{x:laneX, y:flipY}}
             ];
             slingData.forEach(s => {
                 ctx.fillStyle = '#2ecc71'; ctx.beginPath();
@@ -225,13 +242,13 @@
             bumpers.forEach(drawFrogBumper);
             leftFlipper.draw(); rightFlipper.draw();
             
-            // ボールの描画（核の色: #708090）
+            // ボール描画（核の色: #708090）
             ctx.save();
             ctx.translate(ball.x, ball.y);
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath(); ctx.arc(0, 0, ball.radius, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.stroke();
-            ctx.fillStyle = '#708090'; // 指定色を適用
+            ctx.fillStyle = '#708090'; 
             ctx.beginPath(); ctx.arc(0, 0, ball.radius * 0.5, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath(); ctx.arc(-ball.radius * 0.3, -ball.radius * 0.3, ball.radius * 0.15, 0, Math.PI * 2); ctx.fill();
