@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>KerokeroBall - Score Pop Edition</title>
+    <title>KerokeroBall - Sound Edition</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; }
@@ -14,6 +14,7 @@
     <div id="ui">
         <h2 style="margin:0; font-size: 1.2rem;">KerokeroBall</h2>
         <div id="score">Score: 0</div>
+        <div id="msg" style="font-size: 0.8rem; margin-top:5px; opacity: 0.7;">Tap to Start with Sound</div>
     </div>
     <canvas id="gameCanvas"></canvas>
 
@@ -21,13 +22,40 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
+        const msgEl = document.getElementById('msg');
 
         canvas.width = 360; 
         canvas.height = 660; 
 
         const gravity = 0.42; 
         let score = 0;
-        let floatingTexts = []; // 浮遊スコアを管理する配列
+        let floatingTexts = [];
+        let isAudioUnlocked = false;
+
+        // --- 音声ファイルの設定 ---
+        const keroSound = new Audio();
+        keroSound.src = 'https://raw.githubusercontent.com/U-ocan/kerokeroball/main/kero.m4a';
+        keroSound.preload = 'auto';
+
+        function playKero() {
+            if (!isAudioUnlocked) return;
+            // 連続で当たっても最初から再生されるようにリセット
+            keroSound.pause();
+            keroSound.currentTime = 0;
+            keroSound.play().catch(e => console.log("Sound error:", e));
+        }
+
+        // iOSブラウザの音声制限を解除する関数
+        function unlockAudio() {
+            if (isAudioUnlocked) return;
+            keroSound.play().then(() => {
+                keroSound.pause();
+                keroSound.currentTime = 0;
+                isAudioUnlocked = true;
+                msgEl.style.display = 'none'; // メッセージを消す
+            }).catch(e => console.log("Unlock failed:", e));
+        }
+        // ------------------------
 
         const frogImg = new Image();
         frogImg.crossOrigin = "anonymous"; 
@@ -38,20 +66,15 @@
 
         const ball = { x: 342, y: 560, vx: 0, vy: 0, radius: 14, isLocked: true };
 
-        // 浮遊スコアテキストのクラス
         class FloatingText {
             constructor(x, y, text) {
-                this.x = x;
-                this.y = y;
-                this.text = text;
-                this.life = 1.0; // 1.0(出現) -> 0.0(消滅)
-                this.vY = -1.5;  // 上昇速度
-                this.scale = 0.5; // 最初は小さく
+                this.x = x; this.y = y; this.text = text;
+                this.life = 1.0; this.vY = -1.5; this.scale = 0.5;
             }
             update() {
                 this.y += this.vY;
-                this.life -= 0.02; // 消えていく速度
-                if (this.scale < 1.2) this.scale += 0.1; // ポップアップ演出
+                this.life -= 0.02;
+                if (this.scale < 1.2) this.scale += 0.1;
             }
             draw() {
                 ctx.save();
@@ -160,12 +183,8 @@
             
             leftFlipper.draw(); rightFlipper.draw();
 
-            // 浮遊テキストの更新と描画
             floatingTexts = floatingTexts.filter(t => t.life > 0);
-            floatingTexts.forEach(t => {
-                t.update();
-                t.draw();
-            });
+            floatingTexts.forEach(t => { t.update(); t.draw(); });
 
             ctx.save(); ctx.translate(ball.x, ball.y); ctx.fillStyle = '#FFFFFF';
             ctx.beginPath(); ctx.arc(0, 0, ball.radius, 0, Math.PI * 2); ctx.fill();
@@ -221,7 +240,6 @@
                     const bPower = 11;
                     ball.vx = Math.cos(angle) * bPower; ball.vy = Math.sin(angle) * bPower;
                     
-                    // スコア更新と浮遊テキスト追加
                     const points = 10;
                     score += points; 
                     scoreEl.innerText = `Score: ${score}`;
@@ -229,6 +247,9 @@
                     
                     ball.x = b.x + Math.cos(angle) * (ball.radius + b.r + 1);
                     b.scale = 1.3; 
+
+                    // カエルの鳴き声を再生
+                    playKero();
                 }
             });
 
@@ -248,7 +269,6 @@
                             ball.vx = s.isLeft ? (8 + variation) : (-8 + variation);
                             ball.vy = -8 - Math.random() * 3;
                             
-                            // スリングショットでもスコア表示
                             const sPoints = 5;
                             score += sPoints; 
                             scoreEl.innerText = `Score: ${score}`;
@@ -287,11 +307,13 @@
         }
 
         const handleInput = (side, active) => {
+            if (active) unlockAudio(); // 最初の操作でサウンドを解禁
             if (side === 'left') leftFlipper.targetAngle = active ? -0.6 : 0.6;
             if (side === 'right') rightFlipper.targetAngle = active ? 0.6 : -0.6;
         };
 
         window.addEventListener('keydown', e => {
+            unlockAudio();
             if (e.code === 'Space') plunger.isCharging = true;
             if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', true);
             if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', true);
@@ -304,6 +326,7 @@
 
         canvas.addEventListener('touchstart', e => {
             e.preventDefault();
+            unlockAudio(); // 画面タップでサウンドを解禁
             const rect = canvas.getBoundingClientRect();
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const touch = e.changedTouches[i];
