@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>KerokeroBall - Sound Edition</title>
+    <title>KerokeroBall - High Response Sound</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; }
@@ -14,7 +14,7 @@
     <div id="ui">
         <h2 style="margin:0; font-size: 1.2rem;">KerokeroBall</h2>
         <div id="score">Score: 0</div>
-        <div id="msg" style="font-size: 0.8rem; margin-top:5px; opacity: 0.7;">Tap to Start with Sound</div>
+        <div id="msg" style="font-size: 0.8rem; margin-top:5px; color: #ffeb3b;">TAP TO ENABLE SOUND</div>
     </div>
     <canvas id="gameCanvas"></canvas>
 
@@ -27,40 +27,51 @@
         canvas.width = 360; 
         canvas.height = 660; 
 
+        // --- Web Audio API サウンドシステム ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        const soundBuffers = {};
+
+        // 今後、ここに音源を増やしていけます
+        const soundAssets = {
+            kero: 'https://raw.githubusercontent.com/U-ocan/kerokeroball/main/kero.m4a'
+            // hit: 'URL...',
+        };
+
+        async function loadSounds() {
+            for (const [name, url] of Object.entries(soundAssets)) {
+                try {
+                    const response = await fetch(url);
+                    const arrayBuffer = await response.arrayBuffer();
+                    soundBuffers[name] = await audioCtx.decodeAudioData(arrayBuffer);
+                } catch (e) { console.error("Sound load error:", name, e); }
+            }
+        }
+
+        function playSound(name) {
+            if (!soundBuffers[name] || audioCtx.state !== 'running') return;
+            const source = audioCtx.createBufferSource();
+            source.buffer = soundBuffers[name];
+            source.connect(audioCtx.destination);
+            source.start(0);
+        }
+
+        function unlockAudio() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+                msgEl.style.display = 'none';
+            }
+        }
+        loadSounds();
+        // ------------------------------------
+
         const gravity = 0.42; 
         let score = 0;
         let floatingTexts = [];
-        let isAudioUnlocked = false;
-
-        // --- 音声ファイルの設定 ---
-        const keroSound = new Audio();
-        keroSound.src = 'https://raw.githubusercontent.com/U-ocan/kerokeroball/main/kero.m4a';
-        keroSound.preload = 'auto';
-
-        function playKero() {
-            if (!isAudioUnlocked) return;
-            // 連続で当たっても最初から再生されるようにリセット
-            keroSound.pause();
-            keroSound.currentTime = 0;
-            keroSound.play().catch(e => console.log("Sound error:", e));
-        }
-
-        // iOSブラウザの音声制限を解除する関数
-        function unlockAudio() {
-            if (isAudioUnlocked) return;
-            keroSound.play().then(() => {
-                keroSound.pause();
-                keroSound.currentTime = 0;
-                isAudioUnlocked = true;
-                msgEl.style.display = 'none'; // メッセージを消す
-            }).catch(e => console.log("Unlock failed:", e));
-        }
-        // ------------------------
 
         const frogImg = new Image();
         frogImg.crossOrigin = "anonymous"; 
         frogImg.src = 'https://raw.githubusercontent.com/U-ocan/kerokeroball/main/frog.PNG'; 
-
         let imgLoaded = false;
         frogImg.onload = () => { imgLoaded = true; };
 
@@ -82,7 +93,7 @@
                 ctx.fillStyle = "#ffffff";
                 ctx.font = `bold ${24 * this.scale}px sans-serif`;
                 ctx.textAlign = "center";
-                ctx.shadowColor = "rgba(0,0,0,0.5)";
+                ctx.shadowColor = "rgba(0,0,0,0.3)";
                 ctx.shadowBlur = 4;
                 ctx.fillText(this.text, this.x, this.y);
                 ctx.restore();
@@ -237,22 +248,18 @@
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist < ball.radius + b.r) {
                     const angle = Math.atan2(dy, dx);
-                    const bPower = 11;
-                    ball.vx = Math.cos(angle) * bPower; ball.vy = Math.sin(angle) * bPower;
+                    ball.vx = Math.cos(angle) * 11; ball.vy = Math.sin(angle) * 11;
                     
-                    const points = 10;
-                    score += points; 
-                    scoreEl.innerText = `Score: ${score}`;
-                    floatingTexts.push(new FloatingText(b.x, b.y - 20, `+${points}`));
+                    score += 10; scoreEl.innerText = `Score: ${score}`;
+                    floatingTexts.push(new FloatingText(b.x, b.y - 20, `+10`));
                     
                     ball.x = b.x + Math.cos(angle) * (ball.radius + b.r + 1);
                     b.scale = 1.3; 
-
-                    // カエルの鳴き声を再生
-                    playKero();
+                    playSound('kero'); // 当たった瞬間に発音
                 }
             });
 
+            // スリングショット（壁）衝突
             const slings = [
                 {x1: 0, y1: slingTop, x2: 70, y2: flipY, isLeft: true},
                 {x1: laneX - 15, y1: slingTop, x2: 250, y2: flipY, isLeft: false}
@@ -263,17 +270,13 @@
                     const edgeX = s.isLeft ? (progress * 70) : (laneX - 15 - (progress * 65));
                     const isInside = s.isLeft ? (ball.x - ball.radius < edgeX) : (ball.x + ball.radius > edgeX && ball.x < laneX - 15);
                     if (isInside) {
-                        const speed = Math.sqrt(ball.vx**2 + ball.vy**2);
-                        if (speed > 1.2) {
-                            const variation = (Math.random() - 0.5) * 2;
-                            ball.vx = s.isLeft ? (8 + variation) : (-8 + variation);
-                            ball.vy = -8 - Math.random() * 3;
-                            
-                            const sPoints = 5;
-                            score += sPoints; 
-                            scoreEl.innerText = `Score: ${score}`;
-                            floatingTexts.push(new FloatingText(ball.x, ball.y, `+${sPoints}`));
-                        } else { ball.vx *= 0.8; }
+                        if (Math.sqrt(ball.vx**2 + ball.vy**2) > 1.2) {
+                            ball.vx = s.isLeft ? 8 : -8;
+                            ball.vy = -8;
+                            score += 5; scoreEl.innerText = `Score: ${score}`;
+                            floatingTexts.push(new FloatingText(ball.x, ball.y, `+5`));
+                            // 必要ならここに壁用の playSound('hit') などを追加可能
+                        }
                         ball.x = s.isLeft ? (edgeX + ball.radius + 2) : (edgeX - ball.radius - 2);
                     }
                 }
@@ -284,15 +287,12 @@
                 const dx = ball.x - f.x; const dy = ball.y - f.y;
                 const cos = Math.cos(-f.angle); const sin = Math.sin(-f.angle);
                 const rx = dx * cos - dy * sin; const ry = dx * sin + dy * cos;
-                const halfThick = 10;
-                if (rx * f.side > -5 && rx * f.side < f.length + 5 && Math.abs(ry) < ball.radius + halfThick) {
-                    const isFlipping = Math.abs(f.angle - f.prevAngle) > 0.01;
-                    if (isFlipping) {
-                        const hitPower = 19;
-                        ball.vx = Math.sin(f.angle) * hitPower * f.side;
-                        ball.vy = -Math.cos(f.angle) * hitPower;
+                if (rx * f.side > -5 && rx * f.side < f.length + 5 && Math.abs(ry) < ball.radius + 10) {
+                    if (Math.abs(f.angle - f.prevAngle) > 0.01) {
+                        ball.vx = Math.sin(f.angle) * 19 * f.side;
+                        ball.vy = -Math.cos(f.angle) * 19;
                     } else { ball.vx *= 0.7; ball.vy *= 0.5; }
-                    const pushY = (ry > 0 ? 1 : -1) * (ball.radius + halfThick + 1);
+                    const pushY = (ry > 0 ? 1 : -1) * (ball.radius + 11);
                     ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
                     ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
                 }
@@ -307,7 +307,7 @@
         }
 
         const handleInput = (side, active) => {
-            if (active) unlockAudio(); // 最初の操作でサウンドを解禁
+            if (active) unlockAudio(); 
             if (side === 'left') leftFlipper.targetAngle = active ? -0.6 : 0.6;
             if (side === 'right') rightFlipper.targetAngle = active ? 0.6 : -0.6;
         };
@@ -326,7 +326,7 @@
 
         canvas.addEventListener('touchstart', e => {
             e.preventDefault();
-            unlockAudio(); // 画面タップでサウンドを解禁
+            unlockAudio();
             const rect = canvas.getBoundingClientRect();
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const touch = e.changedTouches[i];
