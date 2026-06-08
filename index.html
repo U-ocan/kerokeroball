@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>KerokeroBall - Perfect Symmetry Fixed</title>
+    <title>KerokeroBall - Perfect Flippers</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; }
@@ -39,7 +39,6 @@
         const leftFlipperX = slingWidth;         // = 50  (中心から左に 112.5)
         const rightFlipperX = laneX - slingWidth; // = 275 (中心から右に 112.5)
 
-        // フリッパーの長さを112に伸ばし、静止時の隙間を約40px（ボール直径28に対して最適）に調整
         const flipperLen = 112; 
         const flipperThickness = 20; 
 
@@ -114,7 +113,7 @@
         const leftFlipper = new Flipper(leftFlipperX, flipY, flipperLen, 0.6, 1);
         const rightFlipper = new Flipper(rightFlipperX, flipY, flipperLen, -0.6, -1);
 
-        // バンパーもフィールドの真の中心（162.5）を基準に対称化
+        // バンパー
         const bumpers = [
             { x: fieldCenterX - 75, y: 180, r: 35, scale: 1.0 }, 
             { x: fieldCenterX + 75, y: 180, r: 35, scale: 1.0 }, 
@@ -149,7 +148,7 @@
             }
             ctx.stroke();
 
-            // スリングショット描画（laneX=325を右端として完璧に左右対称化）
+            // スリングショット描画
             const slingData = [
                 {p1:{x:0, y:slingTop}, p2:{x:slingWidth, y:flipY}, p3:{x:0, y:flipY}},
                 {p1:{x:laneX, y:slingTop}, p2:{x:laneX - slingWidth, y:flipY}, p3:{x:laneX, y:flipY}}
@@ -213,31 +212,27 @@
                 ball.vy *= airFriction;
             }
 
-            // 外枠の壁反射（キャンバスの左端・右端・天井）
+            // 外枠の壁反射
             if (ball.x < ball.radius) { ball.vx *= -0.5; ball.x = ball.radius; }
             if (ball.x > canvas.width - ball.radius) { ball.vx *= -0.5; ball.x = canvas.width - ball.radius; }
             if (ball.y < ball.radius) { ball.vy *= -0.4; ball.y = ball.radius; }
 
-            // 通路・仕切り壁の制御（すり抜けバグを完全修正する厳密な判定）
-            const wallThicknessHalf = 4; // 壁の半幅
+            // 通路・仕切り壁の制御
+            const wallThicknessHalf = 4; 
             if (ball.y < laneExitY) {
-                // 上部エリア：レーンから放出されたボールを左（フィールド）へ流す
                 if (ball.x > laneX - 15 && ball.vx >= 0) {
                     ball.vx = -7; ball.vy = -3;
                 }
             } else {
-                // 下部エリア：仕切り壁（laneX = 325）をまたぐすり抜けを物理的に遮断
                 if (ball.x > laneX) {
-                    // レーン内側：左方向への進行を制限
                     if (ball.x < laneX + wallThicknessHalf + ball.radius) {
                         ball.x = laneX + wallThicknessHalf + ball.radius; 
-                        ball.vx = Math.abs(ball.vx) * 0.5; // 右へ跳ね返す
+                        ball.vx = Math.abs(ball.vx) * 0.5; 
                     }
                 } else {
-                    // フィールド内側：右方向への進行を制限
                     if (ball.x > laneX - wallThicknessHalf - ball.radius) {
                         ball.x = laneX - wallThicknessHalf - ball.radius; 
-                        ball.vx = -Math.abs(ball.vx) * 0.5; // 左へ跳ね返す
+                        ball.vx = -Math.abs(ball.vx) * 0.5; 
                     }
                 }
             }
@@ -260,7 +255,7 @@
                 }
             });
 
-            // スリングショット（完全対称座標系での判定）
+            // スリングショット
             const slings = [
                 {x1: 0, y1: slingTop, x2: slingWidth, y2: flipY, isLeft: true},
                 {x1: laneX, y1: slingTop, x2: laneX - slingWidth, y2: flipY, isLeft: false}
@@ -291,26 +286,48 @@
                 }
             });
 
-            // フリッパー衝突
+            // フリッパー衝突（吸い付き防止・パワー強化・レバー比対応版）
             [leftFlipper, rightFlipper].forEach(f => {
                 f.update();
                 const dx = ball.x - f.x; const dy = ball.y - f.y;
                 const cos = Math.cos(-f.angle); const sin = Math.sin(-f.angle);
                 const rx = dx * cos - dy * sin; const ry = dx * sin + dy * cos;
-                if (rx * f.side > -10 && rx * f.side < f.length + 10 && Math.abs(ry) < ball.radius + flipperThickness/2 + 5) {
-                    if (Math.abs(f.angularVelocity) > 0.005) {
-                        const hitPower = 18.5;
-                        const bounceVyRel = -hitPower * 0.95; 
-                        const bounceVxRel = 4 * f.side;
-                        ball.vx = bounceVxRel * Math.cos(f.angle) - bounceVyRel * Math.sin(f.angle);
-                        ball.vy = bounceVxRel * Math.sin(f.angle) + bounceVyRel * Math.cos(f.angle);
-                    } else { 
-                        ball.vx *= 0.6; ball.vy *= 0.6;
-                        if (ry > 0) { ball.vy = Math.abs(ball.vy) + gravity * 2; }
+                
+                // 長さ方向の当たり判定範囲（根元から先端まで、少しだけマージンを考慮）
+                const isWithinLength = (f.side === 1) ? (rx > -8 && rx < f.length + 8) : (rx < 8 && rx > -f.length - 8);
+                
+                if (isWithinLength && Math.abs(ry) < ball.radius + flipperThickness/2 + 2) {
+                    // 表側（ry < 0）か 裏側（ry >= 0）かで物理を完全分離
+                    if (ry < 0) {
+                        // 【表面（上側）での衝突処理】
+                        if (Math.abs(f.angularVelocity) > 0.005) {
+                            // パワーを24.5に強化 ＋ 先端に行くほど速くなるレバー比を計算
+                            const dist = Math.abs(rx);
+                            const hitPower = 24.5 * (0.65 + (dist / f.length) * 0.55); 
+                            
+                            const bounceVyRel = -hitPower * 0.95; 
+                            const bounceVxRel = 4 * f.side;
+                            ball.vx = bounceVxRel * Math.cos(f.angle) - bounceVyRel * Math.sin(f.angle);
+                            ball.vy = bounceVxRel * Math.sin(f.angle) + bounceVyRel * Math.cos(f.angle);
+                        } else { 
+                            // 静止時は表面を滑らかに転がる（過度な減衰を撤廃して0.85に）
+                            ball.vx *= 0.85; ball.vy *= 0.85;
+                        }
+                        // 位置補正（完全に上側へ押し出す）
+                        const pushY = -(ball.radius + flipperThickness/2 + 1);
+                        ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
+                        ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
+                    } else {
+                        // 【裏面（下側）での衝突処理：吸い付き防止】
+                        // 下側に入り込んだボールは強制的に下方向（デッドゾーン側）へ逃がす
+                        ball.vy = Math.abs(ball.vy) + gravity * 3 + 1.5; 
+                        ball.vx += f.side * 1.0; 
+                        
+                        // 位置補正（完全に下側へ押し出す）
+                        const pushY = (ball.radius + flipperThickness/2 + 2);
+                        ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
+                        ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
                     }
-                    const pushY = (ry > 0 ? 1 : -1) * (ball.radius + flipperThickness/2 + 1);
-                    ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
-                    ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
                 }
             });
 
