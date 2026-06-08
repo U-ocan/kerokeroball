@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>KerokeroBall - Symmetry Refined Edition</title>
+    <title>KerokeroBall - Perfect Symmetry Edition</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; }
@@ -21,32 +21,26 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
-        // const msgEl = document.getElementById('msg'); // サウンド機能一時無効化
 
         canvas.width = 360; 
         canvas.height = 660; 
 
         // --- 物理パラメータ ---
-        const gravity = 0.45; // 重力をわずかに強めて停滞を防ぐ（調整済み安定版）
-        const airFriction = 0.99; // 空気摩擦（調整済み安定版）
+        const gravity = 0.45; 
+        const airFriction = 0.99; 
         let score = 0;
         let floatingTexts = [];
 
-        // --- レイアウトパラメータ（対称性とフィールド中心） ---
-        // シューターレーンを除いたフィールドの中心
-        const fieldCenterX = (325 - 15) / 2; // = 155
+        // --- レイアウトパラメータ（完全左右対称の定義） ---
+        const laneX = 325;              // シューターレーンの仕切り線（右壁）
+        const fieldCenterX = laneX / 2; // = 162.5 (フィールドの真の中心)
 
-        // フリッパーの軸を外側に広げて隙間を確保 (ボール直径28px強に確保)
-        // 完璧な左右対称を確保しつつ、付き方を対称に。
-        const leftFlipperX = 57;  // 旧70 $\rightarrow$ fieldCenterX基準に
-        const rightFlipperX = 253; // 旧255 $\rightarrow$ fieldCenterX基準に (隙間をボール直径28px強に確保)
+        const slingWidth = 50;                   // スリングショットの底辺幅（左右一律50px）
+        const leftFlipperX = slingWidth;         // = 50  (中心から左に 112.5)
+        const rightFlipperX = laneX - slingWidth; // = 275 (中心から右に 112.5)
 
-        // スリングショット底辺幅。フリッパー軸xと一致させる。
-        // フリッパー軸を広げたことに伴い、キャンバスからはみ出さないように狭くした。
-        const slingWidth = 57; // 旧75
-
-        const flipperLen = 95; // 長さは維持
-        const flipperThickness = 20; // 厚みを定義
+        const flipperLen = 95; 
+        const flipperThickness = 20; 
 
         const frogImg = new Image();
         frogImg.crossOrigin = "anonymous"; 
@@ -103,13 +97,13 @@
                 ctx.rotate(this.angle);
                 ctx.fillStyle = '#27ae60';
                 ctx.beginPath();
+                ctx.roundRect(0, -flipperThickness/2, this.length * futilitySide = this.side, flipperThickness, flipperThickness/2);
                 ctx.roundRect(0, -flipperThickness/2, this.length * this.side, flipperThickness, flipperThickness/2);
                 ctx.fill();
                 ctx.restore();
             }
         }
 
-        const laneX = 325; 
         const laneExitY = 120; 
         const plunger = {
             y: 585, minY: 585, maxY: 645, 
@@ -120,11 +114,11 @@
         const leftFlipper = new Flipper(leftFlipperX, flipY, flipperLen, 0.6, 1);
         const rightFlipper = new Flipper(rightFlipperX, flipY, flipperLen, -0.6, -1);
 
-        // バンパーのx座標を fieldCenterX 基準に修正
+        // バンパーもフィールドの真の中心（162.5）を基準に対称化
         const bumpers = [
-            { x: fieldCenterX - 80, y: 180, r: 35, scale: 1.0 }, // 旧80 $\rightarrow$ fieldCenterX基準に
-            { x: fieldCenterX + 80, y: 180, r: 35, scale: 1.0 }, // 旧240 $\rightarrow$ fieldCenterX基準に
-            { x: fieldCenterX, y: 320, r: 45, scale: 1.0 } // 中央: x=160 $\rightarrow$ fieldCenterX
+            { x: fieldCenterX - 75, y: 180, r: 35, scale: 1.0 }, 
+            { x: fieldCenterX + 75, y: 180, r: 35, scale: 1.0 }, 
+            { x: fieldCenterX, y: 320, r: 45, scale: 1.0 } 
         ];
 
         const slingTop = flipY - 105;
@@ -155,12 +149,10 @@
             }
             ctx.stroke();
 
-            // スリングショット描画（数学的に左右対称、fieldCenterX基準、フリッパー軸と角p2を一致）
+            // スリングショット描画（laneX=325を右端として完璧に左右対称化）
             const slingData = [
-                // 左：キャンバス左端から開始。角p2を左フリッパー軸x=57に一致。底辺幅w=57。
                 {p1:{x:0, y:slingTop}, p2:{x:slingWidth, y:flipY}, p3:{x:0, y:flipY}},
-                // 右：通路仕切り fieldCenterX * 2 から開始。角p2を右フリッパー軸x=253に一致。底辺幅w=57。
-                {p1:{x:fieldCenterX * 2, y:slingTop}, p2:{x:fieldCenterX * 2 - slingWidth, y:flipY}, p3:{x:fieldCenterX * 2, y:flipY}}
+                {p1:{x:laneX, y:slingTop}, p2:{x:laneX - slingWidth, y:flipY}, p3:{x:laneX, y:flipY}}
             ];
             slingData.forEach(s => {
                 ctx.fillStyle = '#2ecc71'; ctx.beginPath();
@@ -221,22 +213,33 @@
                 ball.vy *= airFriction;
             }
 
-            // 壁反射
+            // 外枠の壁反射（キャンバスの左端・右端・天井）
             if (ball.x < ball.radius) { ball.vx *= -0.5; ball.x = ball.radius; }
             if (ball.x > canvas.width - ball.radius) { ball.vx *= -0.5; ball.x = canvas.width - ball.radius; }
             if (ball.y < ball.radius) { ball.vy *= -0.4; ball.y = ball.radius; }
 
-            // 通路制御
-            if (ball.x > laneX - 10) {
-                if (ball.y < laneExitY) {
-                    if (ball.vx >= 0) { ball.vx = -8; ball.vy = -4; }
+            // 通路・仕切り壁の制御（すり抜けバグを完全修正する厳密な判定）
+            const wallThicknessHalf = 4; // 壁の半幅
+            if (ball.y < laneExitY) {
+                // 上部エリア：レーンから放出されたボールを左（フィールド）へ流す
+                if (ball.x > laneX - 15 && ball.vx >= 0) {
+                    ball.vx = -7; ball.vy = -3;
+                }
+            } else {
+                // 下部エリア：仕切り壁（laneX = 325）をまたぐすり抜けを物理的に遮断
+                if (ball.x > laneX) {
+                    // レーン内側：左方向への進行を制限
+                    if (ball.x < laneX + wallThicknessHalf + ball.radius) {
+                        ball.x = laneX + wallThicknessHalf + ball.radius; 
+                        ball.vx = Math.abs(ball.vx) * 0.5; // 右へ跳ね返す
+                    }
                 } else {
-                    if (ball.x < laneX + ball.radius) {
-                        ball.x = laneX + ball.radius; ball.vx = 0;
+                    // フィールド内側：右方向への進行を制限
+                    if (ball.x > laneX - wallThicknessHalf - ball.radius) {
+                        ball.x = laneX - wallThicknessHalf - ball.radius; 
+                        ball.vx = -Math.abs(ball.vx) * 0.5; // 左へ跳ね返す
                     }
                 }
-            } else if (ball.y > laneExitY && ball.x > laneX - 25) {
-                ball.x = laneX - 25; ball.vx *= -0.5;
             }
 
             // バンパー衝突
@@ -252,25 +255,21 @@
                     
                     score += 10; scoreEl.innerText = `Score: ${score}`;
                     floatingTexts.push(new FloatingText(b.x, b.y - 20, `+10`));
-                    
                     ball.x = b.x + Math.cos(angle) * (ball.radius + b.r + 1);
                     b.scale = 1.3; 
-                    // playSound('kero'); // サウンド一時無効化
                 }
             });
 
-            // スリングショット（対称な衝突判定に更新、fieldCenterX基準）
+            // スリングショット（完全対称座標系での判定）
             const slings = [
                 {x1: 0, y1: slingTop, x2: slingWidth, y2: flipY, isLeft: true},
-                // 右：通路仕切り fieldCenterX * 2 から開始。角p2を右フリッパー軸x=253に一致。底辺幅w=57。
-                {x1: fieldCenterX * 2, y1: slingTop, x2: fieldCenterX * 2 - slingWidth, y2: flipY, isLeft: false}
+                {x1: laneX, y1: slingTop, x2: laneX - slingWidth, y2: flipY, isLeft: false}
             ];
             slings.forEach(s => {
                 if (ball.y >= slingTop && ball.y <= flipY) {
                     const progress = (ball.y - slingTop) / (flipY - slingTop);
-                    // 左右で完璧に対称な斜辺の位置を計算。右は通路仕切り基準。
-                    const edgeX = s.isLeft ? (progress * slingWidth) : (fieldCenterX * 2 - (progress * slingWidth));
-                    const isInside = s.isLeft ? (ball.x - ball.radius < edgeX) : (ball.x + ball.radius > edgeX && ball.x < fieldCenterX * 2);
+                    const edgeX = s.isLeft ? (progress * slingWidth) : (laneX - (progress * slingWidth));
+                    const isInside = s.isLeft ? (ball.x - ball.radius < edgeX) : (ball.x + ball.radius > edgeX && ball.x < laneX);
                     
                     if (isInside) {
                         const speed = Math.sqrt(ball.vx**2 + ball.vy**2);
@@ -292,25 +291,21 @@
                 }
             });
 
-            // フリッパー衝突（安定版の物理を維持）
+            // フリッパー衝突
             [leftFlipper, rightFlipper].forEach(f => {
                 f.update();
                 const dx = ball.x - f.x; const dy = ball.y - f.y;
                 const cos = Math.cos(-f.angle); const sin = Math.sin(-f.angle);
                 const rx = dx * cos - dy * sin; const ry = dx * sin + dy * cos;
-                // 厚みを描画内で定義
                 if (rx * f.side > -10 && rx * f.side < f.length + 10 && Math.abs(ry) < ball.radius + flipperThickness/2 + 5) {
                     if (Math.abs(f.angularVelocity) > 0.005) {
                         const hitPower = 18.5;
-                        // 上向きのベクトルを強める
                         const bounceVyRel = -hitPower * 0.95; 
                         const bounceVxRel = 4 * f.side;
                         ball.vx = bounceVxRel * Math.cos(f.angle) - bounceVyRel * Math.sin(f.angle);
                         ball.vy = bounceVxRel * Math.sin(f.angle) + bounceVyRel * Math.cos(f.angle);
                     } else { 
-                        // 静止時の転がり・減衰（吸い付き防止調整済み）
                         ball.vx *= 0.6; ball.vy *= 0.6;
-                        // 下側貫通防止の押し出し
                         if (ry > 0) { ball.vy = Math.abs(ball.vy) + gravity * 2; }
                     }
                     const pushY = (ry > 0 ? 1 : -1) * (ball.radius + flipperThickness/2 + 1);
@@ -329,13 +324,11 @@
         }
 
         const handleInput = (side, active) => {
-            // if (active) unlockAudio(); // サウンド一時無効化
             if (side === 'left') leftFlipper.targetAngle = active ? -0.6 : 0.6;
             if (side === 'right') rightFlipper.targetAngle = active ? 0.6 : -0.6;
         };
 
         window.addEventListener('keydown', e => {
-            // unlockAudio(); // サウンド一時無効化
             if (e.code === 'Space') plunger.isCharging = true;
             if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', true);
             if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', true);
@@ -347,7 +340,7 @@
         });
 
         canvas.addEventListener('touchstart', e => {
-            e.preventDefault(); // unlockAudio(); // サウンド一時無効化
+            e.preventDefault(); 
             const rect = canvas.getBoundingClientRect();
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const touch = e.changedTouches[i];
