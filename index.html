@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>KerokeroBall - Physics Stability Edition</title>
+    <title>KerokeroBall - Refined Layout</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; }
@@ -26,47 +26,15 @@
         canvas.width = 360; 
         canvas.height = 660; 
 
-        /* サウンドシステム一時無効化
-        // --- Web Audio API サウンドシステム ---
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        const audioCtx = new AudioContext();
-        const soundBuffers = {};
-        const soundAssets = {
-            kero: 'https://raw.githubusercontent.com/U-ocan/kerokeroball/main/kero.m4a'
-        };
-
-        async function loadSounds() {
-            for (const [name, url] of Object.entries(soundAssets)) {
-                try {
-                    const response = await fetch(url);
-                    const arrayBuffer = await response.arrayBuffer();
-                    soundBuffers[name] = await audioCtx.decodeAudioData(arrayBuffer);
-                } catch (e) { console.error("Sound load error:", name, e); }
-            }
-        }
-
-        function playSound(name) {
-            if (!soundBuffers[name] || audioCtx.state !== 'running') return;
-            const source = audioCtx.createBufferSource();
-            source.buffer = soundBuffers[name];
-            source.connect(audioCtx.destination);
-            source.start(0);
-        }
-
-        function unlockAudio() {
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-                msgEl.style.display = 'none';
-            }
-        }
-        loadSounds();
-        */ // ------------------------------------
-
         // --- 物理パラメータ ---
-        const gravity = 0.48; // 重力をわずかに強めて停滞を防ぐ（調整）
-        const airFriction = 0.992; // 空気摩擦（調整：勢いを維持しつつ無限ループ防止）
+        const gravity = 0.45; // 重力をわずかに強めて停滞を防ぐ（調整済み安定版）
+        const airFriction = 0.99; // 空気摩擦（調整済み安定版）
         let score = 0;
         let floatingTexts = [];
+
+        // フリッパーの隙間を広げるためのX座標調整（調整の肝）
+        const leftFlipperX = 62;  // 旧70
+        const rightFlipperX = 263; // 旧255 (隙間をボール直径28px強に確保)
 
         const frogImg = new Image();
         frogImg.crossOrigin = "anonymous"; 
@@ -93,7 +61,7 @@
                 ctx.fillStyle = "#ffffff";
                 ctx.font = `bold ${22 * this.scale}px sans-serif`;
                 ctx.textAlign = "center";
-                ctx.shadowColor = "rgba(0,0,0,0.3)"; // シャドウ復活
+                ctx.shadowColor = "rgba(0,0,0,0.3)";
                 ctx.shadowBlur = 4;
                 ctx.fillText(this.text, this.x, this.y);
                 ctx.restore();
@@ -105,14 +73,14 @@
             constructor(x, y, length, angle, side) {
                 this.x = x; this.y = y; this.length = length;
                 this.baseAngle = angle; this.angle = angle;
-                this.side = side; // 1:左, -1:右
+                this.side = side;
                 this.targetAngle = angle;
                 this.prevAngle = angle;
-                this.angularVelocity = 0; // 角速度
+                this.angularVelocity = 0;
             }
             update() {
                 this.prevAngle = this.angle;
-                const speed = 0.48; // 動作速度（調整）
+                const speed = 0.48; 
                 const diff = this.targetAngle - this.angle;
                 this.angularVelocity = diff * speed;
                 this.angle += this.angularVelocity;
@@ -123,8 +91,8 @@
                 ctx.rotate(this.angle);
                 ctx.fillStyle = '#27ae60';
                 ctx.beginPath();
-                // 先端を丸く
-                ctx.roundRect(0, -10 * this.side, this.length * this.side, 20 * this.side, 10);
+                const thickness = 20; // 厚みを定義
+                ctx.roundRect(0, -thickness/2, this.length * this.side, thickness, thickness/2);
                 ctx.fill();
                 ctx.restore();
             }
@@ -138,8 +106,9 @@
         };
         
         const flipY = 560; 
-        const leftFlipper = new Flipper(70, flipY, 95, 0.6, 1);
-        const rightFlipper = new Flipper(255, flipY, 95, -0.6, -1);
+        const flipperLen = 95; // 長さは維持
+        const leftFlipper = new Flipper(leftFlipperX, flipY, flipperLen, 0.6, 1);
+        const rightFlipper = new Flipper(rightFlipperX, flipY, flipperLen, -0.6, -1);
 
         const bumpers = [
             { x: 80, y: 180, r: 35, scale: 1.0 },
@@ -175,10 +144,13 @@
             }
             ctx.stroke();
 
-            // スリングショット描画
+            // スリングショット描画（数学的に左右対称に再設計）
+            const slingWidth = 75; // 対称な底辺幅を定義
             const slingData = [
-                {p1:{x:0, y:slingTop}, p2:{x:70, y:flipY}, p3:{x:0, y:flipY}},
-                {p1:{x:laneX-15, y:slingTop}, p2:{x:250, y:flipY}, p3:{x:laneX-15, y:flipY}}
+                // 左：完璧な対称形状
+                {p1:{x:0, y:slingTop}, p2:{x:slingWidth, y:flipY}, p3:{x:0, y:flipY}},
+                // 右：完璧な対称形状（通路仕切りを考慮して配置）
+                {p1:{x:laneX-15, y:slingTop}, p2:{x:laneX-15-slingWidth, y:flipY}, p3:{x:laneX-15, y:flipY}}
             ];
             slingData.forEach(s => {
                 ctx.fillStyle = '#2ecc71'; ctx.beginPath();
@@ -235,7 +207,6 @@
                 ball.vy += gravity;
                 ball.x += ball.vx;
                 ball.y += ball.vy;
-                // 全体的な摩擦を適用（調整：勢いを維持しつつ無限ループ防止）
                 ball.vx *= airFriction;
                 ball.vy *= airFriction;
             }
@@ -264,7 +235,6 @@
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist < ball.radius + b.r) {
                     const angle = Math.atan2(dy, dx);
-                    // 反射に少しランダム性を加える
                     const jitter = (Math.random() - 0.5) * 0.1;
                     const bPower = 11.5;
                     ball.vx = Math.cos(angle + jitter) * bPower; 
@@ -279,27 +249,27 @@
                 }
             });
 
-            // スリングショット
+            // スリングショット（対称な衝突判定に更新）
+            const slingWidth = 75; // 描画と同じ対称な幅を使用
             const slings = [
-                {x1: 0, y1: slingTop, x2: 70, y2: flipY, isLeft: true},
-                {x1: laneX - 15, y1: slingTop, x2: 250, y2: flipY, isLeft: false}
+                {x1: 0, y1: slingTop, x2: slingWidth, y2: flipY, isLeft: true},
+                {x1: laneX - 15, y1: slingTop, x2: laneX - 15 - slingWidth, y2: flipY, isLeft: false}
             ];
             slings.forEach(s => {
                 if (ball.y >= slingTop && ball.y <= flipY) {
                     const progress = (ball.y - slingTop) / (flipY - slingTop);
-                    const edgeX = s.isLeft ? (progress * 70) : (laneX - 15 - (progress * 65));
+                    // 左右で完璧に対称な斜辺の位置を計算
+                    const edgeX = s.isLeft ? (progress * slingWidth) : (laneX - 15 - (progress * slingWidth));
                     const isInside = s.isLeft ? (ball.x - ball.radius < edgeX) : (ball.x + ball.radius > edgeX && ball.x < laneX - 15);
                     
                     if (isInside) {
                         const speed = Math.sqrt(ball.vx**2 + ball.vy**2);
-                        // 速度に応じて反発力を変える（調整：無限ループ防止）
                         const bouncePower = Math.max(7, speed * 0.88); 
-                        // ランダムな角度揺らぎ
                         const angleJitter = (Math.random() - 0.5) * 0.2; 
                         
                         if (s.isLeft) {
                             ball.vx = Math.cos(angleJitter) * bouncePower;
-                            ball.vy = Math.sin(angleJitter) * bouncePower - 5; // やや上向きに
+                            ball.vy = Math.sin(angleJitter) * bouncePower - 5;
                         } else {
                             ball.vx = -Math.cos(angleJitter) * bouncePower;
                             ball.vy = Math.sin(angleJitter) * bouncePower - 5;
@@ -312,90 +282,30 @@
                 }
             });
 
-            // フリッパー衝突（修正：吸い付きと反発力の改善）
+            // フリッパー衝突（安定版の物理を維持）
             [leftFlipper, rightFlipper].forEach(f => {
                 f.update();
                 const dx = ball.x - f.x; const dy = ball.y - f.y;
-                // フリッパーの角度に合わせて座標を回転
                 const cos = Math.cos(-f.angle); const sin = Math.sin(-f.angle);
                 const rx = dx * cos - dy * sin; const ry = dx * sin + dy * cos;
-
-                const flipperThickness = 20; // フリッパーの厚み（調整）
-                const flipperRadius = flipperThickness / 2;
-
-                // フリッパーの範囲内か判定（先端と根元の丸みも考慮）
-                const distFromRoot = Math.sqrt(rx * rx + ry * ry);
-                const rxTip = rx - f.length * f.side;
-                const distFromTip = Math.sqrt(rxTip * rxTip + ry * ry);
-
-                // 衝突判定
-                let isHit = false;
-                let hitAngle = 0;
-                let hitDist = 0;
-
-                if (distFromRoot < ball.radius + flipperRadius) {
-                    // 根元の丸み
-                    isHit = true; hitAngle = Math.atan2(ry, rx); hitDist = distFromRoot;
-                } else if (distFromTip < ball.radius + flipperRadius) {
-                    // 先端の丸み
-                    isHit = true; hitAngle = Math.atan2(ry, rxTip); hitDist = distFromTip;
-                } else if (rx * f.side > 0 && rx * f.side < f.length && Math.abs(ry) < ball.radius + flipperRadius) {
-                    // 側面（上下）
-                    isHit = true; hitAngle = ry > 0 ? Math.PI / 2 : -Math.PI / 2; hitDist = Math.abs(ry);
-                }
-
-                if (isHit) {
-                    // 衝突した瞬間のフリッパーの角速度を取得
-                    const isFlipping = Math.abs(f.angularVelocity) > 0.005; // 動作中か（閾値調整）
-                    
-                    // 回転座標系でのボールの相対速度
-                    const relVx = ball.vx * cos - ball.vy * sin;
-                    const relVy = ball.vx * sin + ball.vy * cos;
-
-                    if (isFlipping) {
-                        // 動作中の反発処理（反発力強化）
-                        // フリッパーの表面（ry < 0）で弾くように調整
-                        const bouncePower = 22 * (rx * f.side / f.length) + 12; // 先端ほど強く弾く（調整）
-                        const hitVx = Math.cos(f.angle - Math.PI / 2 * f.side) * bouncePower;
-                        const hitVy = Math.sin(f.angle - Math.PI / 2 * f.side) * bouncePower;
-                        
-                        // 回転座標系での反発ベクトル（やや上向き）
-                        const bounceVxRel = 5 * f.side; // 横方向の勢い
-                        const bounceVyRel = -bouncePower * 0.8; // 上方向の弾き（調整）
-                        
+                const flipperThickness = 20;
+                if (rx * f.side > -10 && rx * f.side < f.length + 10 && Math.abs(ry) < ball.radius + flipperThickness/2 + 5) {
+                    if (Math.abs(f.angularVelocity) > 0.005) {
+                        const hitPower = 18.5;
+                        // 上向きのベクトルを強める
+                        const bounceVyRel = -hitPower * 0.95; 
+                        const bounceVxRel = 4 * f.side;
                         ball.vx = bounceVxRel * Math.cos(f.angle) - bounceVyRel * Math.sin(f.angle);
                         ball.vy = bounceVxRel * Math.sin(f.angle) + bounceVyRel * Math.cos(f.angle);
-                    } else {
-                        // 静止中の反射・転がり処理（調整：吸い付き防止、下側への貫通防止）
-                        const relVs = relVx * f.side;
-                        // 貫通防止（ry > 0の場合は下側接触とみなす）
-                        const isUnderneath = ry > 0;
-                        if (isUnderneath) {
-                            // 下側から接触：軽く押し返す
-                            const pushVy = -gravity * 1.5;
-                            const newVxRel = relVx;
-                            const newVyRel = pushVy;
-                            ball.vx = newVxRel * Math.cos(f.angle) - newVyRel * Math.sin(f.angle);
-                            ball.vy = newVxRel * Math.sin(f.angle) + newVyRel * Math.cos(f.angle);
-                        } else {
-                            // 上側から接触：転がり・反射
-                            // フリッパーの傾斜に沿った減衰（調整：滑らかな転がり）
-                            const rollingFriction = 0.985;
-                            const newVxRel = relVx * rollingFriction;
-                            const newVyRel = relVy * -0.5; // 上向き反射は抑える
-                            ball.vx = newVxRel * Math.cos(f.angle) - newVyRel * Math.sin(f.angle);
-                            ball.vy = newVxRel * Math.sin(f.angle) + newVyRel * Math.cos(f.angle);
-                        }
+                    } else { 
+                        // 静止時の転がり・減衰（吸い付き防止調整済み）
+                        ball.vx *= 0.6; ball.vy *= 0.6;
+                        // 下側貫通防止の押し出し
+                        if (ry > 0) { ball.vy = Math.abs(ball.vy) + gravity * 2; }
                     }
-
-                    // 衝突位置の補正（貫通・吸い付き防止）
-                    if (hitDist > 0) {
-                        const pushDist = (ball.radius + flipperRadius) - hitDist + 1; // 1px余裕を持たせる
-                        const pushVxRel = Math.cos(hitAngle) * pushDist;
-                        const pushVyRel = Math.sin(hitAngle) * pushDist;
-                        ball.x += pushVxRel * Math.cos(f.angle) - pushVyRel * Math.sin(f.angle);
-                        ball.y += pushVxRel * Math.sin(f.angle) + pushVyRel * Math.cos(f.angle);
-                    }
+                    const pushY = (ry > 0 ? 1 : -1) * (ball.radius + flipperThickness/2 + 1);
+                    ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
+                    ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
                 }
             });
 
@@ -408,7 +318,6 @@
             requestAnimationFrame(update);
         }
 
-        // 入力処理（サウンド一時無効化）
         const handleInput = (side, active) => {
             // if (active) unlockAudio(); // サウンド一時無効化
             if (side === 'left') leftFlipper.targetAngle = active ? -0.6 : 0.6;
