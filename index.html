@@ -39,7 +39,8 @@
         const leftFlipperX = slingWidth;         // = 50  (中心から左に 112.5)
         const rightFlipperX = laneX - slingWidth; // = 275 (中心から右に 112.5)
 
-        const flipperLen = 95; 
+        // フリッパーの長さを112に伸ばし、静止時の隙間を約40px（ボール直径28に対して最適）に調整
+        const flipperLen = 112; 
         const flipperThickness = 20; 
 
         const frogImg = new Image();
@@ -97,7 +98,6 @@
                 ctx.rotate(this.angle);
                 ctx.fillStyle = '#27ae60';
                 ctx.beginPath();
-                // 前回のタイポ箇所を完全に修正
                 ctx.roundRect(0, -flipperThickness/2, this.length * this.side, flipperThickness, flipperThickness/2);
                 ctx.fill();
                 ctx.restore();
