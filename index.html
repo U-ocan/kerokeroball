@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>KerokeroBall - Relaxed Edition</title>
+    <title>KerokeroBall - Solid Flippers</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; }
@@ -48,7 +48,7 @@
         let imgLoaded = false;
         frogImg.onload = () => { imgLoaded = true; };
 
-        // ★ボールの半径を 14 -> 16 に大きくしました
+        // ボールの半径 16 (緩いゲームバランス用)
         const ball = { x: 342, y: 560, vx: 0, vy: 0, radius: 16, isLocked: true };
 
         // 浮遊テキスト描画
@@ -185,7 +185,7 @@
             // ボール
             ctx.save(); ctx.translate(ball.x, ball.y); ctx.fillStyle = '#FFFFFF';
             ctx.beginPath(); ctx.arc(0, 0, ball.radius, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; stroke();
             ctx.fillStyle = '#708090'; ctx.beginPath(); ctx.arc(0, 0, ball.radius * 0.5, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
         }
@@ -287,46 +287,79 @@
                 }
             });
 
-            // フリッパー衝突（吸い付き防止・パワー強化・レバー比対応版）
+            // フリッパー衝突（★すり抜けバグ完全修正版）
             [leftFlipper, rightFlipper].forEach(f => {
                 f.update();
                 const dx = ball.x - f.x; const dy = ball.y - f.y;
+                
+                // 現在の角度でのローカル座標
                 const cos = Math.cos(-f.angle); const sin = Math.sin(-f.angle);
                 const rx = dx * cos - dy * sin; const ry = dx * sin + dy * cos;
                 
-                // 長さ方向の当たり判定範囲
-                const isWithinLength = (f.side === 1) ? (rx > -8 && rx < f.length + 8) : (rx < 8 && rx > -f.length - 8);
+                // 前フレームの角度でのローカル座標（スイング追跡用）
+                const cosPrev = Math.cos(-f.prevAngle); const sinPrev = Math.sin(-f.prevAngle);
+                const rxPrev = dx * cosPrev - dy * sinPrev;
                 
-                if (isWithinLength && Math.abs(ry) < ball.radius + flipperThickness/2 + 2) {
-                    // 表側（ry < 0）か 裏側（ry >= 0）かで物理を完全分離
-                    if (ry < 0) {
-                        // 【表面（上側）での衝突処理】
-                        if (Math.abs(f.angularVelocity) > 0.005) {
-                            // パワー強化 ＋ レバー比計算
-                            const dist = Math.abs(rx);
-                            const hitPower = 24.5 * (0.65 + (dist / f.length) * 0.55); 
-                            
-                            const bounceVyRel = -hitPower * 0.95; 
-                            const bounceVxRel = 4 * f.side;
-                            ball.vx = bounceVxRel * Math.cos(f.angle) - bounceVyRel * Math.sin(f.angle);
-                            ball.vy = bounceVxRel * Math.sin(f.angle) + bounceVyRel * Math.cos(f.angle);
-                        } else { 
-                            // 静止時は表面を滑らかに転がる
-                            ball.vx *= 0.85; ball.vy *= 0.85;
+                // 長さ方向の範囲チェック（現フレームまたは前フレームのどちらかで乗っていれば検知）
+                const rxOriented = rx * f.side;
+                const rxPrevOriented = rxPrev * f.side;
+                const isWithinLength = (rxOriented > -10 && rxOriented < f.length + 10) ||
+                                       (rxPrevOriented > -10 && rxPrevOriented < f.length + 10);
+                
+                if (isWithinLength) {
+                    // フリッパーが「下から上へ激しくスイングしている最中」かどうかのフラグ
+                    const isSwingingUp = (f.side === 1 && f.angularVelocity < -0.01) || 
+                                         (f.side === -1 && f.angularVelocity > 0.01);
+                    
+                    let isHit = false;
+                    let isFrontHit = false;
+                    const thicknessBound = ball.radius + flipperThickness / 2; // 16 + 10 = 26
+                    
+                    if (isSwingingUp) {
+                        // 【スイング上昇中】トンネル効果ですり抜けて裏側に回り込んでも、
+                        // 下方向45pxの拡張エリア内ならすべて「表面でのヒット」として強制回収する
+                        if (ry > -(thicknessBound + 2) && ry < thicknessBound + 45) {
+                            isHit = true;
+                            isFrontHit = true; 
                         }
-                        // 位置補正
-                        const pushY = -(ball.radius + flipperThickness/2 + 1);
-                        ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
-                        ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
                     } else {
-                        // 【裏面（下側）での衝突処理：吸い付き防止】
-                        ball.vy = Math.abs(ball.vy) + gravity * 3 + 1.5; 
-                        ball.vx += f.side * 1.0; 
-                        
-                        // 位置補正
-                        const pushY = (ball.radius + flipperThickness/2 + 2);
-                        ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
-                        ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
+                        // 【通常時（静止・戻り時）】通常の厚みで精密判定
+                        if (Math.abs(ry) < thicknessBound + 2) {
+                            isHit = true;
+                            isFrontHit = (ry < 0); 
+                        }
+                    }
+                    
+                    if (isHit) {
+                        if (isFrontHit) {
+                            // 【表面（上側）での衝突・強力弾き返し処理】
+                            if (Math.abs(f.angularVelocity) > 0.005) {
+                                // パワーを強化 ＋ 先端ほど強くなるレバー比計算
+                                const dist = Math.max(0, Math.min(Math.abs(rx), f.length));
+                                const hitPower = 24.5 * (0.65 + (dist / f.length) * 0.55); 
+                                
+                                const bounceVyRel = -hitPower * 0.95; 
+                                const bounceVxRel = 4 * f.side;
+                                ball.vx = bounceVxRel * Math.cos(f.angle) - bounceVyRel * Math.sin(f.angle);
+                                ball.vy = bounceVxRel * Math.sin(f.angle) + bounceVyRel * Math.cos(f.angle);
+                            } else { 
+                                // 静止時は表面を滑らかに滑る
+                                ball.vx *= 0.85; ball.vy *= 0.85;
+                            }
+                            // 位置補正（必ずフリッパーの表面の上に押し上げる）
+                            const pushY = -(thicknessBound + 1);
+                            ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
+                            ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
+                        } else {
+                            // 【裏面（下側）での衝突処理：吸い付き防止】
+                            ball.vy = Math.abs(ball.vy) + gravity * 3 + 1.5; 
+                            ball.vx += f.side * 1.0; 
+                            
+                            // 位置補正（完全に下側へ押し出す）
+                            const pushY = (thicknessBound + 2);
+                            ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
+                            ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
+                        }
                     }
                 }
             });
