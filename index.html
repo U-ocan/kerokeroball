@@ -14,19 +14,19 @@
     <div id="ui">
         <h2 style="margin:0; font-size: 1.2rem;">KerokeroBall</h2>
         <div id="score">Score: 0</div>
-        <div id="msg" style="font-size: 0.8rem; margin-top:5px; color: #ffeb3b;">TAP TO ENABLE SOUND</div>
-    </div>
+        </div>
     <canvas id="gameCanvas"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
-        const msgEl = document.getElementById('msg');
+        // const msgEl = document.getElementById('msg'); // サウンド機能一時無効化
 
         canvas.width = 360; 
         canvas.height = 660; 
 
+        /* サウンドシステム一時無効化
         // --- Web Audio API サウンドシステム ---
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         const audioCtx = new AudioContext();
@@ -60,10 +60,11 @@
             }
         }
         loadSounds();
+        */ // ------------------------------------
 
         // --- 物理パラメータ ---
-        const gravity = 0.45; // 重力をわずかに強めて停滞を防ぐ
-        const airFriction = 0.99; // 空中摩擦（常に速度を1%削る）
+        const gravity = 0.48; // 重力をわずかに強めて停滞を防ぐ（調整）
+        const airFriction = 0.992; // 空気摩擦（調整：勢いを維持しつつ無限ループ防止）
         let score = 0;
         let floatingTexts = [];
 
@@ -92,6 +93,8 @@
                 ctx.fillStyle = "#ffffff";
                 ctx.font = `bold ${22 * this.scale}px sans-serif`;
                 ctx.textAlign = "center";
+                ctx.shadowColor = "rgba(0,0,0,0.3)"; // シャドウ復活
+                ctx.shadowBlur = 4;
                 ctx.fillText(this.text, this.x, this.y);
                 ctx.restore();
             }
@@ -102,13 +105,17 @@
             constructor(x, y, length, angle, side) {
                 this.x = x; this.y = y; this.length = length;
                 this.baseAngle = angle; this.angle = angle;
-                this.side = side;
+                this.side = side; // 1:左, -1:右
                 this.targetAngle = angle;
                 this.prevAngle = angle;
+                this.angularVelocity = 0; // 角速度
             }
             update() {
                 this.prevAngle = this.angle;
-                this.angle += (this.targetAngle - this.angle) * 0.45;
+                const speed = 0.48; // 動作速度（調整）
+                const diff = this.targetAngle - this.angle;
+                this.angularVelocity = diff * speed;
+                this.angle += this.angularVelocity;
             }
             draw() {
                 ctx.save();
@@ -116,7 +123,8 @@
                 ctx.rotate(this.angle);
                 ctx.fillStyle = '#27ae60';
                 ctx.beginPath();
-                ctx.roundRect(0, -9, this.length * this.side, 18, 9);
+                // 先端を丸く
+                ctx.roundRect(0, -10 * this.side, this.length * this.side, 20 * this.side, 10);
                 ctx.fill();
                 ctx.restore();
             }
@@ -227,7 +235,7 @@
                 ball.vy += gravity;
                 ball.x += ball.vx;
                 ball.y += ball.vy;
-                // 全体的な摩擦を適用（無限ループ防止策1）
+                // 全体的な摩擦を適用（調整：勢いを維持しつつ無限ループ防止）
                 ball.vx *= airFriction;
                 ball.vy *= airFriction;
             }
@@ -256,7 +264,7 @@
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist < ball.radius + b.r) {
                     const angle = Math.atan2(dy, dx);
-                    // 反射に少しランダム性を加える（無限ループ防止策2）
+                    // 反射に少しランダム性を加える
                     const jitter = (Math.random() - 0.5) * 0.1;
                     const bPower = 11.5;
                     ball.vx = Math.cos(angle + jitter) * bPower; 
@@ -267,11 +275,11 @@
                     
                     ball.x = b.x + Math.cos(angle) * (ball.radius + b.r + 1);
                     b.scale = 1.3; 
-                    playSound('kero');
+                    // playSound('kero'); // サウンド一時無効化
                 }
             });
 
-            // スリングショット（無限ループ対策版）
+            // スリングショット
             const slings = [
                 {x1: 0, y1: slingTop, x2: 70, y2: flipY, isLeft: true},
                 {x1: laneX - 15, y1: slingTop, x2: 250, y2: flipY, isLeft: false}
@@ -284,10 +292,10 @@
                     
                     if (isInside) {
                         const speed = Math.sqrt(ball.vx**2 + ball.vy**2);
-                        // 速度に応じて反発力を変える（無限ループ防止策3）
-                        const bouncePower = Math.max(7, speed * 0.85); 
+                        // 速度に応じて反発力を変える（調整：無限ループ防止）
+                        const bouncePower = Math.max(7, speed * 0.88); 
                         // ランダムな角度揺らぎ
-                        const angleJitter = (Math.random() - 0.5) * 0.3; 
+                        const angleJitter = (Math.random() - 0.5) * 0.2; 
                         
                         if (s.isLeft) {
                             ball.vx = Math.cos(angleJitter) * bouncePower;
@@ -304,23 +312,90 @@
                 }
             });
 
-            // フリッパー衝突
+            // フリッパー衝突（修正：吸い付きと反発力の改善）
             [leftFlipper, rightFlipper].forEach(f => {
                 f.update();
                 const dx = ball.x - f.x; const dy = ball.y - f.y;
+                // フリッパーの角度に合わせて座標を回転
                 const cos = Math.cos(-f.angle); const sin = Math.sin(-f.angle);
                 const rx = dx * cos - dy * sin; const ry = dx * sin + dy * cos;
-                if (rx * f.side > -5 && rx * f.side < f.length + 5 && Math.abs(ry) < ball.radius + 10) {
-                    if (Math.abs(f.angle - f.prevAngle) > 0.02) {
-                        const hitPower = 18.5;
-                        ball.vx = Math.sin(f.angle) * hitPower * f.side;
-                        ball.vy = -Math.cos(f.angle) * hitPower;
-                    } else { 
-                        ball.vx *= 0.6; ball.vy *= 0.6; // 静止フリッパーでの減衰
+
+                const flipperThickness = 20; // フリッパーの厚み（調整）
+                const flipperRadius = flipperThickness / 2;
+
+                // フリッパーの範囲内か判定（先端と根元の丸みも考慮）
+                const distFromRoot = Math.sqrt(rx * rx + ry * ry);
+                const rxTip = rx - f.length * f.side;
+                const distFromTip = Math.sqrt(rxTip * rxTip + ry * ry);
+
+                // 衝突判定
+                let isHit = false;
+                let hitAngle = 0;
+                let hitDist = 0;
+
+                if (distFromRoot < ball.radius + flipperRadius) {
+                    // 根元の丸み
+                    isHit = true; hitAngle = Math.atan2(ry, rx); hitDist = distFromRoot;
+                } else if (distFromTip < ball.radius + flipperRadius) {
+                    // 先端の丸み
+                    isHit = true; hitAngle = Math.atan2(ry, rxTip); hitDist = distFromTip;
+                } else if (rx * f.side > 0 && rx * f.side < f.length && Math.abs(ry) < ball.radius + flipperRadius) {
+                    // 側面（上下）
+                    isHit = true; hitAngle = ry > 0 ? Math.PI / 2 : -Math.PI / 2; hitDist = Math.abs(ry);
+                }
+
+                if (isHit) {
+                    // 衝突した瞬間のフリッパーの角速度を取得
+                    const isFlipping = Math.abs(f.angularVelocity) > 0.005; // 動作中か（閾値調整）
+                    
+                    // 回転座標系でのボールの相対速度
+                    const relVx = ball.vx * cos - ball.vy * sin;
+                    const relVy = ball.vx * sin + ball.vy * cos;
+
+                    if (isFlipping) {
+                        // 動作中の反発処理（反発力強化）
+                        // フリッパーの表面（ry < 0）で弾くように調整
+                        const bouncePower = 22 * (rx * f.side / f.length) + 12; // 先端ほど強く弾く（調整）
+                        const hitVx = Math.cos(f.angle - Math.PI / 2 * f.side) * bouncePower;
+                        const hitVy = Math.sin(f.angle - Math.PI / 2 * f.side) * bouncePower;
+                        
+                        // 回転座標系での反発ベクトル（やや上向き）
+                        const bounceVxRel = 5 * f.side; // 横方向の勢い
+                        const bounceVyRel = -bouncePower * 0.8; // 上方向の弾き（調整）
+                        
+                        ball.vx = bounceVxRel * Math.cos(f.angle) - bounceVyRel * Math.sin(f.angle);
+                        ball.vy = bounceVxRel * Math.sin(f.angle) + bounceVyRel * Math.cos(f.angle);
+                    } else {
+                        // 静止中の反射・転がり処理（調整：吸い付き防止、下側への貫通防止）
+                        const relVs = relVx * f.side;
+                        // 貫通防止（ry > 0の場合は下側接触とみなす）
+                        const isUnderneath = ry > 0;
+                        if (isUnderneath) {
+                            // 下側から接触：軽く押し返す
+                            const pushVy = -gravity * 1.5;
+                            const newVxRel = relVx;
+                            const newVyRel = pushVy;
+                            ball.vx = newVxRel * Math.cos(f.angle) - newVyRel * Math.sin(f.angle);
+                            ball.vy = newVxRel * Math.sin(f.angle) + newVyRel * Math.cos(f.angle);
+                        } else {
+                            // 上側から接触：転がり・反射
+                            // フリッパーの傾斜に沿った減衰（調整：滑らかな転がり）
+                            const rollingFriction = 0.985;
+                            const newVxRel = relVx * rollingFriction;
+                            const newVyRel = relVy * -0.5; // 上向き反射は抑える
+                            ball.vx = newVxRel * Math.cos(f.angle) - newVyRel * Math.sin(f.angle);
+                            ball.vy = newVxRel * Math.sin(f.angle) + newVyRel * Math.cos(f.angle);
+                        }
                     }
-                    const pushY = (ry > 0 ? 1 : -1) * (ball.radius + 11);
-                    ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
-                    ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
+
+                    // 衝突位置の補正（貫通・吸い付き防止）
+                    if (hitDist > 0) {
+                        const pushDist = (ball.radius + flipperRadius) - hitDist + 1; // 1px余裕を持たせる
+                        const pushVxRel = Math.cos(hitAngle) * pushDist;
+                        const pushVyRel = Math.sin(hitAngle) * pushDist;
+                        ball.x += pushVxRel * Math.cos(f.angle) - pushVyRel * Math.sin(f.angle);
+                        ball.y += pushVxRel * Math.sin(f.angle) + pushVyRel * Math.cos(f.angle);
+                    }
                 }
             });
 
@@ -333,15 +408,15 @@
             requestAnimationFrame(update);
         }
 
-        // 入力処理
+        // 入力処理（サウンド一時無効化）
         const handleInput = (side, active) => {
-            if (active) unlockAudio(); 
+            // if (active) unlockAudio(); // サウンド一時無効化
             if (side === 'left') leftFlipper.targetAngle = active ? -0.6 : 0.6;
             if (side === 'right') rightFlipper.targetAngle = active ? 0.6 : -0.6;
         };
 
         window.addEventListener('keydown', e => {
-            unlockAudio();
+            // unlockAudio(); // サウンド一時無効化
             if (e.code === 'Space') plunger.isCharging = true;
             if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', true);
             if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', true);
@@ -353,7 +428,7 @@
         });
 
         canvas.addEventListener('touchstart', e => {
-            e.preventDefault(); unlockAudio();
+            e.preventDefault(); // unlockAudio(); // サウンド一時無効化
             const rect = canvas.getBoundingClientRect();
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const touch = e.changedTouches[i];
