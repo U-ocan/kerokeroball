@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>KerokeroBall - Perfect Symmetry Edition</title>
+    <title>KerokeroBall - Perfect Symmetry Fixed</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; }
@@ -97,7 +97,7 @@
                 ctx.rotate(this.angle);
                 ctx.fillStyle = '#27ae60';
                 ctx.beginPath();
-                ctx.roundRect(0, -flipperThickness/2, this.length * futilitySide = this.side, flipperThickness, flipperThickness/2);
+                // 前回のタイポ箇所を完全に修正
                 ctx.roundRect(0, -flipperThickness/2, this.length * this.side, flipperThickness, flipperThickness/2);
                 ctx.fill();
                 ctx.restore();
