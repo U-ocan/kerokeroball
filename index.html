@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>KerokeroBall - Perfect Flippers</title>
+    <title>KerokeroBall - Relaxed Edition</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; }
@@ -48,7 +48,8 @@
         let imgLoaded = false;
         frogImg.onload = () => { imgLoaded = true; };
 
-        const ball = { x: 342, y: 560, vx: 0, vy: 0, radius: 14, isLocked: true };
+        // ★ボールの半径を 14 -> 16 に大きくしました
+        const ball = { x: 342, y: 560, vx: 0, vy: 0, radius: 16, isLocked: true };
 
         // 浮遊テキスト描画
         class FloatingText {
@@ -293,7 +294,7 @@
                 const cos = Math.cos(-f.angle); const sin = Math.sin(-f.angle);
                 const rx = dx * cos - dy * sin; const ry = dx * sin + dy * cos;
                 
-                // 長さ方向の当たり判定範囲（根元から先端まで、少しだけマージンを考慮）
+                // 長さ方向の当たり判定範囲
                 const isWithinLength = (f.side === 1) ? (rx > -8 && rx < f.length + 8) : (rx < 8 && rx > -f.length - 8);
                 
                 if (isWithinLength && Math.abs(ry) < ball.radius + flipperThickness/2 + 2) {
@@ -301,7 +302,7 @@
                     if (ry < 0) {
                         // 【表面（上側）での衝突処理】
                         if (Math.abs(f.angularVelocity) > 0.005) {
-                            // パワーを24.5に強化 ＋ 先端に行くほど速くなるレバー比を計算
+                            // パワー強化 ＋ レバー比計算
                             const dist = Math.abs(rx);
                             const hitPower = 24.5 * (0.65 + (dist / f.length) * 0.55); 
                             
@@ -310,20 +311,19 @@
                             ball.vx = bounceVxRel * Math.cos(f.angle) - bounceVyRel * Math.sin(f.angle);
                             ball.vy = bounceVxRel * Math.sin(f.angle) + bounceVyRel * Math.cos(f.angle);
                         } else { 
-                            // 静止時は表面を滑らかに転がる（過度な減衰を撤廃して0.85に）
+                            // 静止時は表面を滑らかに転がる
                             ball.vx *= 0.85; ball.vy *= 0.85;
                         }
-                        // 位置補正（完全に上側へ押し出す）
+                        // 位置補正
                         const pushY = -(ball.radius + flipperThickness/2 + 1);
                         ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
                         ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
                     } else {
                         // 【裏面（下側）での衝突処理：吸い付き防止】
-                        // 下側に入り込んだボールは強制的に下方向（デッドゾーン側）へ逃がす
                         ball.vy = Math.abs(ball.vy) + gravity * 3 + 1.5; 
                         ball.vx += f.side * 1.0; 
                         
-                        // 位置補正（完全に下側へ押し出す）
+                        // 位置補正
                         const pushY = (ball.radius + flipperThickness/2 + 2);
                         ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
                         ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
