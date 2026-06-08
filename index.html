@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>KerokeroBall - Refined Layout</title>
+    <title>KerokeroBall - Symmetry Refined Edition</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; }
@@ -32,9 +32,21 @@
         let score = 0;
         let floatingTexts = [];
 
-        // フリッパーの隙間を広げるためのX座標調整（調整の肝）
-        const leftFlipperX = 62;  // 旧70
-        const rightFlipperX = 263; // 旧255 (隙間をボール直径28px強に確保)
+        // --- レイアウトパラメータ（対称性とフィールド中心） ---
+        // シューターレーンを除いたフィールドの中心
+        const fieldCenterX = (325 - 15) / 2; // = 155
+
+        // フリッパーの軸を外側に広げて隙間を確保 (ボール直径28px強に確保)
+        // 完璧な左右対称を確保しつつ、付き方を対称に。
+        const leftFlipperX = 57;  // 旧70 $\rightarrow$ fieldCenterX基準に
+        const rightFlipperX = 253; // 旧255 $\rightarrow$ fieldCenterX基準に (隙間をボール直径28px強に確保)
+
+        // スリングショット底辺幅。フリッパー軸xと一致させる。
+        // フリッパー軸を広げたことに伴い、キャンバスからはみ出さないように狭くした。
+        const slingWidth = 57; // 旧75
+
+        const flipperLen = 95; // 長さは維持
+        const flipperThickness = 20; // 厚みを定義
 
         const frogImg = new Image();
         frogImg.crossOrigin = "anonymous"; 
@@ -73,7 +85,7 @@
             constructor(x, y, length, angle, side) {
                 this.x = x; this.y = y; this.length = length;
                 this.baseAngle = angle; this.angle = angle;
-                this.side = side;
+                this.side = side; // 1:左, -1:右
                 this.targetAngle = angle;
                 this.prevAngle = angle;
                 this.angularVelocity = 0;
@@ -91,8 +103,7 @@
                 ctx.rotate(this.angle);
                 ctx.fillStyle = '#27ae60';
                 ctx.beginPath();
-                const thickness = 20; // 厚みを定義
-                ctx.roundRect(0, -thickness/2, this.length * this.side, thickness, thickness/2);
+                ctx.roundRect(0, -flipperThickness/2, this.length * this.side, flipperThickness, flipperThickness/2);
                 ctx.fill();
                 ctx.restore();
             }
@@ -106,14 +117,14 @@
         };
         
         const flipY = 560; 
-        const flipperLen = 95; // 長さは維持
         const leftFlipper = new Flipper(leftFlipperX, flipY, flipperLen, 0.6, 1);
         const rightFlipper = new Flipper(rightFlipperX, flipY, flipperLen, -0.6, -1);
 
+        // バンパーのx座標を fieldCenterX 基準に修正
         const bumpers = [
-            { x: 80, y: 180, r: 35, scale: 1.0 },
-            { x: 240, y: 180, r: 35, scale: 1.0 },
-            { x: 160, y: 320, r: 45, scale: 1.0 }
+            { x: fieldCenterX - 80, y: 180, r: 35, scale: 1.0 }, // 旧80 $\rightarrow$ fieldCenterX基準に
+            { x: fieldCenterX + 80, y: 180, r: 35, scale: 1.0 }, // 旧240 $\rightarrow$ fieldCenterX基準に
+            { x: fieldCenterX, y: 320, r: 45, scale: 1.0 } // 中央: x=160 $\rightarrow$ fieldCenterX
         ];
 
         const slingTop = flipY - 105;
@@ -144,13 +155,12 @@
             }
             ctx.stroke();
 
-            // スリングショット描画（数学的に左右対称に再設計）
-            const slingWidth = 75; // 対称な底辺幅を定義
+            // スリングショット描画（数学的に左右対称、fieldCenterX基準、フリッパー軸と角p2を一致）
             const slingData = [
-                // 左：完璧な対称形状
+                // 左：キャンバス左端から開始。角p2を左フリッパー軸x=57に一致。底辺幅w=57。
                 {p1:{x:0, y:slingTop}, p2:{x:slingWidth, y:flipY}, p3:{x:0, y:flipY}},
-                // 右：完璧な対称形状（通路仕切りを考慮して配置）
-                {p1:{x:laneX-15, y:slingTop}, p2:{x:laneX-15-slingWidth, y:flipY}, p3:{x:laneX-15, y:flipY}}
+                // 右：通路仕切り fieldCenterX * 2 から開始。角p2を右フリッパー軸x=253に一致。底辺幅w=57。
+                {p1:{x:fieldCenterX * 2, y:slingTop}, p2:{x:fieldCenterX * 2 - slingWidth, y:flipY}, p3:{x:fieldCenterX * 2, y:flipY}}
             ];
             slingData.forEach(s => {
                 ctx.fillStyle = '#2ecc71'; ctx.beginPath();
@@ -249,18 +259,18 @@
                 }
             });
 
-            // スリングショット（対称な衝突判定に更新）
-            const slingWidth = 75; // 描画と同じ対称な幅を使用
+            // スリングショット（対称な衝突判定に更新、fieldCenterX基準）
             const slings = [
                 {x1: 0, y1: slingTop, x2: slingWidth, y2: flipY, isLeft: true},
-                {x1: laneX - 15, y1: slingTop, x2: laneX - 15 - slingWidth, y2: flipY, isLeft: false}
+                // 右：通路仕切り fieldCenterX * 2 から開始。角p2を右フリッパー軸x=253に一致。底辺幅w=57。
+                {x1: fieldCenterX * 2, y1: slingTop, x2: fieldCenterX * 2 - slingWidth, y2: flipY, isLeft: false}
             ];
             slings.forEach(s => {
                 if (ball.y >= slingTop && ball.y <= flipY) {
                     const progress = (ball.y - slingTop) / (flipY - slingTop);
-                    // 左右で完璧に対称な斜辺の位置を計算
-                    const edgeX = s.isLeft ? (progress * slingWidth) : (laneX - 15 - (progress * slingWidth));
-                    const isInside = s.isLeft ? (ball.x - ball.radius < edgeX) : (ball.x + ball.radius > edgeX && ball.x < laneX - 15);
+                    // 左右で完璧に対称な斜辺の位置を計算。右は通路仕切り基準。
+                    const edgeX = s.isLeft ? (progress * slingWidth) : (fieldCenterX * 2 - (progress * slingWidth));
+                    const isInside = s.isLeft ? (ball.x - ball.radius < edgeX) : (ball.x + ball.radius > edgeX && ball.x < fieldCenterX * 2);
                     
                     if (isInside) {
                         const speed = Math.sqrt(ball.vx**2 + ball.vy**2);
@@ -288,7 +298,7 @@
                 const dx = ball.x - f.x; const dy = ball.y - f.y;
                 const cos = Math.cos(-f.angle); const sin = Math.sin(-f.angle);
                 const rx = dx * cos - dy * sin; const ry = dx * sin + dy * cos;
-                const flipperThickness = 20;
+                // 厚みを描画内で定義
                 if (rx * f.side > -10 && rx * f.side < f.length + 10 && Math.abs(ry) < ball.radius + flipperThickness/2 + 5) {
                     if (Math.abs(f.angularVelocity) > 0.005) {
                         const hitPower = 18.5;
