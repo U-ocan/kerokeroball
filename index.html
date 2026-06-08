@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>KerokeroBall - Multi-Sound Edition</title>
+    <title>KerokeroBall - Kickout Hole Edition</title>
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; }
@@ -43,13 +43,12 @@
             }
         }
 
-        // 引数 rate で再生速度（ピッチ）を指定できるように拡張
         function playKeroSound(rate = 1.0) {
             if (!soundEnabled) return;
             try {
                 const soundClone = keroAudio.cloneNode(true);
-                soundClone.playbackRate = rate;    // 再生速度を変更
-                soundClone.preservesPitch = false; // 速度に応じて音程（ピッチ）も変化させる設定（MDN準拠）
+                soundClone.playbackRate = rate;    
+                soundClone.preservesPitch = false; 
                 soundClone.volume = 0.5; 
                 soundClone.play().catch(() => {});
             } catch (e) {
@@ -80,7 +79,13 @@
         let imgLoaded = false;
         frogImg.onload = () => { imgLoaded = true; };
 
-        const ball = { x: 342, y: 560, vx: 0, vy: 0, radius: 16, isLocked: true };
+        // ボールにホール用の状態管理変数を追加
+        const ball = { 
+            x: 342, y: 560, vx: 0, vy: 0, radius: 16, 
+            isLocked: true,
+            holeTimer: 0,      // 穴に入っている時間（0なら入っていない）
+            holeCooldown: 0    // 穴から出た直後の無敵時間
+        };
 
         // 浮遊テキスト描画
         class FloatingText {
@@ -152,6 +157,9 @@
             { x: fieldCenterX, y: 320, r: 45, scale: 1.0 } 
         ];
 
+        // キックアウトホールの定義
+        const kickoutHole = { x: fieldCenterX, y: 90, r: 24 };
+
         const slingTop = flipY - 105;
 
         function resetBall() {
@@ -159,6 +167,8 @@
             ball.y = plunger.minY - ball.radius - 2;
             ball.vx = 0; ball.vy = 0;
             ball.isLocked = true; 
+            ball.holeTimer = 0;
+            ball.holeCooldown = 0;
         }
 
         function draw() {
@@ -191,6 +201,20 @@
                 ctx.beginPath(); ctx.moveTo(s.p1.x, s.p1.y + 5); ctx.lineTo(s.p2.x, s.p2.y - 5); ctx.stroke();
             });
 
+            // キックアウトホールの描画
+            ctx.save();
+            ctx.translate(kickoutHole.x, kickoutHole.y);
+            ctx.fillStyle = '#111111'; // 穴の奥
+            ctx.beginPath(); ctx.arc(0, 0, kickoutHole.r, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#f39c12'; // 穴の縁取り（オレンジ）
+            ctx.lineWidth = 4; ctx.stroke();
+            // ホールド中の演出（タイマーに合わせて内側が光る）
+            if (ball.holeTimer > 0) {
+                ctx.fillStyle = 'rgba(241, 196, 15, 0.4)';
+                ctx.beginPath(); ctx.arc(0, 0, kickoutHole.r * (ball.holeTimer / 60), 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.restore();
+
             // バンパー
             bumpers.forEach(b => {
                 ctx.save();
@@ -212,11 +236,13 @@
             floatingTexts = floatingTexts.filter(t => t.life > 0);
             floatingTexts.forEach(t => { t.update(); t.draw(); });
 
-            // ボール
-            ctx.save(); ctx.translate(ball.x, ball.y); ctx.fillStyle = '#FFFFFF';
-            ctx.beginPath(); ctx.arc(0, 0, ball.radius, 0, Math.PI * 2); ctx.fill();
+            // ボールの描画（穴に入っている間はボールを少し小さく見せて吸い込まれた感を出す）
+            ctx.save(); ctx.translate(ball.x, ball.y); 
+            const drawRadius = ball.holeTimer > 0 ? ball.radius * 0.8 : ball.radius;
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath(); ctx.arc(0, 0, drawRadius, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.stroke();
-            ctx.fillStyle = '#708090'; ctx.beginPath(); ctx.arc(0, 0, ball.radius * 0.5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#708090'; ctx.beginPath(); ctx.arc(0, 0, drawRadius * 0.5, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
         }
 
@@ -230,18 +256,54 @@
                         const power = (plunger.y - plunger.minY) * plunger.k + 22;
                         ball.vy = -power;
                         ball.isLocked = false;
-                        playKeroSound(1.0); // ★プランジャー発射：通常ピッチ
+                        playKeroSound(1.0); 
                     }
                     plunger.y -= 45; 
                 } else { plunger.y = plunger.minY; }
             }
 
-            if (!ball.isLocked) {
-                ball.vy += gravity;
-                ball.x += ball.vx;
-                ball.y += ball.vy;
-                ball.vx *= airFriction;
-                ball.vy *= airFriction;
+            // キックアウトホールの処理
+            if (ball.holeTimer > 0) {
+                // 穴に入っている状態：物理演算を無視して座標を固定
+                ball.holeTimer--;
+                ball.x = kickoutHole.x;
+                ball.y = kickoutHole.y;
+                ball.vx = 0;
+                ball.vy = 0;
+                
+                // タイマーゼロで強制発射
+                if (ball.holeTimer === 0) {
+                    ball.vy = -16; // 確実に脱出させる強い上向きの力
+                    ball.vx = (Math.random() - 0.5) * 8; // 左右に少しブレさせる
+                    ball.holeCooldown = 30; // 30フレームは再吸い込み防止
+                    
+                    score += 50; 
+                    scoreEl.innerText = `Score: ${score}`;
+                    floatingTexts.push(new FloatingText(kickoutHole.x, kickoutHole.y - 30, `+50`));
+                    playKeroSound(1.6); // 高音でピョコンと飛び出す音
+                }
+            } else {
+                // 通常の物理演算（穴に入っていない時のみ）
+                if (!ball.isLocked) {
+                    ball.vy += gravity;
+                    ball.x += ball.vx;
+                    ball.y += ball.vy;
+                    ball.vx *= airFriction;
+                    ball.vy *= airFriction;
+                }
+
+                // ホール判定のクールダウン減少
+                if (ball.holeCooldown > 0) {
+                    ball.holeCooldown--;
+                } else if (!ball.isLocked) {
+                    // 吸い込み判定（中心に十分近づいた時のみ発動）
+                    const hdx = ball.x - kickoutHole.x; 
+                    const hdy = ball.y - kickoutHole.y;
+                    if (Math.sqrt(hdx * hdx + hdy * hdy) < kickoutHole.r * 0.8) {
+                        ball.holeTimer = 60; // 60フレーム（約1秒）ホールド
+                        playKeroSound(0.5);  // 低音でスポッと入る音
+                    }
+                }
             }
 
             // 外枠の壁反射
@@ -269,170 +331,68 @@
                 }
             }
 
-            // バンパー衝突
-            bumpers.forEach(b => {
-                const dx = ball.x - b.x; const dy = ball.y - b.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < ball.radius + b.r) {
-                    const angle = Math.atan2(dy, dx);
-                    const jitter = (Math.random() - 0.5) * 0.1;
-                    const bPower = 11.5;
-                    ball.vx = Math.cos(angle + jitter) * bPower; 
-                    ball.vy = Math.sin(angle + jitter) * bPower;
-                    
-                    score += 10; scoreEl.innerText = `Score: ${score}`;
-                    floatingTexts.push(new FloatingText(b.x, b.y - 20, `+10`));
-                    ball.x = b.x + Math.cos(angle) * (ball.radius + b.r + 1);
-                    b.scale = 1.3; 
-                    playKeroSound(1.35); // ★バンパー：高音でハキハキした音
-                }
-            });
-
-            // スリングショット
-            const slings = [
-                {x1: 0, y1: slingTop, x2: slingWidth, y2: flipY, isLeft: true},
-                {x1: laneX, y1: slingTop, x2: laneX - slingWidth, y2: flipY, isLeft: false}
-            ];
-            slings.forEach(s => {
-                if (ball.y >= slingTop && ball.y <= flipY) {
-                    const progress = (ball.y - slingTop) / (flipY - slingTop);
-                    const edgeX = s.isLeft ? (progress * slingWidth) : (laneX - (progress * slingWidth));
-                    const isInside = s.isLeft ? (ball.x - ball.radius < edgeX) : (ball.x + ball.radius > edgeX && ball.x < laneX);
-                    
-                    if (isInside) {
-                        const speed = Math.sqrt(ball.vx**2 + ball.vy**2);
-                        const bouncePower = Math.max(7, speed * 0.88); 
-                        const angleJitter = (Math.random() - 0.5) * 0.2; 
+            // バンパー衝突（穴に入っている間は除外）
+            if (ball.holeTimer === 0) {
+                bumpers.forEach(b => {
+                    const dx = ball.x - b.x; const dy = ball.y - b.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < ball.radius + b.r) {
+                        const angle = Math.atan2(dy, dx);
+                        const jitter = (Math.random() - 0.5) * 0.1;
+                        const bPower = 11.5;
+                        ball.vx = Math.cos(angle + jitter) * bPower; 
+                        ball.vy = Math.sin(angle + jitter) * bPower;
                         
-                        if (s.isLeft) {
-                            ball.vx = Math.cos(angleJitter) * bouncePower;
-                            ball.vy = Math.sin(angleJitter) * bouncePower - 5;
-                        } else {
-                            ball.vx = -Math.cos(angleJitter) * bouncePower;
-                            ball.vy = Math.sin(angleJitter) * bouncePower - 5;
-                        }
-                        
-                        score += 5; scoreEl.innerText = `Score: ${score}`;
-                        floatingTexts.push(new FloatingText(ball.x, ball.y, `+5`));
-                        ball.x = s.isLeft ? (edgeX + ball.radius + 2) : (edgeX - ball.radius - 2);
-                        playKeroSound(1.1); // ★スリングショット：少し高音
+                        score += 10; scoreEl.innerText = `Score: ${score}`;
+                        floatingTexts.push(new FloatingText(b.x, b.y - 20, `+10`));
+                        ball.x = b.x + Math.cos(angle) * (ball.radius + b.r + 1);
+                        b.scale = 1.3; 
+                        playKeroSound(1.35); 
                     }
-                }
-            });
+                });
+            }
+
+            // スリングショット（穴に入っている間は除外）
+            if (ball.holeTimer === 0) {
+                const slings = [
+                    {x1: 0, y1: slingTop, x2: slingWidth, y2: flipY, isLeft: true},
+                    {x1: laneX, y1: slingTop, x2: laneX - slingWidth, y2: flipY, isLeft: false}
+                ];
+                slings.forEach(s => {
+                    if (ball.y >= slingTop && ball.y <= flipY) {
+                        const progress = (ball.y - slingTop) / (flipY - slingTop);
+                        const edgeX = s.isLeft ? (progress * slingWidth) : (laneX - (progress * slingWidth));
+                        const isInside = s.isLeft ? (ball.x - ball.radius < edgeX) : (ball.x + ball.radius > edgeX && ball.x < laneX);
+                        
+                        if (isInside) {
+                            const speed = Math.sqrt(ball.vx**2 + ball.vy**2);
+                            const bouncePower = Math.max(7, speed * 0.88); 
+                            const angleJitter = (Math.random() - 0.5) * 0.2; 
+                            
+                            if (s.isLeft) {
+                                ball.vx = Math.cos(angleJitter) * bouncePower;
+                                ball.vy = Math.sin(angleJitter) * bouncePower - 5;
+                            } else {
+                                ball.vx = -Math.cos(angleJitter) * bouncePower;
+                                ball.vy = Math.sin(angleJitter) * bouncePower - 5;
+                            }
+                            
+                            score += 5; scoreEl.innerText = `Score: ${score}`;
+                            floatingTexts.push(new FloatingText(ball.x, ball.y, `+5`));
+                            ball.x = s.isLeft ? (edgeX + ball.radius + 2) : (edgeX - ball.radius - 2);
+                            playKeroSound(1.1);
+                        }
+                    }
+                });
+            }
 
             // フリッパー衝突
             [leftFlipper, rightFlipper].forEach(f => {
                 f.update();
+                // 穴にいる時はフリッパー自体の動き(update)はするが、ボールの衝突判定は行わない
+                if (ball.holeTimer > 0) return;
+
                 const dx = ball.x - f.x; const dy = ball.y - f.y;
                 
                 const cos = Math.cos(-f.angle); const sin = Math.sin(-f.angle);
-                const rx = dx * cos - dy * sin; const ry = dx * sin + dy * cos;
-                
-                const cosPrev = Math.cos(-f.prevAngle); const sinPrev = Math.sin(-f.prevAngle);
-                const rxPrev = dx * cosPrev - dy * sinPrev;
-                
-                const rxOriented = rx * f.side;
-                const rxPrevOriented = rxPrev * f.side;
-                const isWithinLength = (rxOriented > -10 && rxOriented < f.length + 10) ||
-                                       (rxPrevOriented > -10 && rxPrevOriented < f.length + 10);
-                
-                if (isWithinLength) {
-                    const isSwingingUp = (f.side === 1 && f.angularVelocity < -0.01) || 
-                                         (f.side === -1 && f.angularVelocity > 0.01);
-                    
-                    let isHit = false;
-                    let isFrontHit = false;
-                    const thicknessBound = ball.radius + flipperThickness / 2;
-                    
-                    if (isSwingingUp) {
-                        if (ry > -(thicknessBound + 2) && ry < thicknessBound + 45) {
-                            isHit = true;
-                            isFrontHit = true; 
-                        }
-                    } else {
-                        if (Math.abs(ry) < thicknessBound + 2) {
-                            isHit = true;
-                            isFrontHit = (ry < 0); 
-                        }
-                    }
-                    
-                    if (isHit) {
-                        if (isFrontHit) {
-                            if (Math.abs(f.angularVelocity) > 0.005) {
-                                const dist = Math.max(0, Math.min(Math.abs(rx), f.length));
-                                const hitPower = 24.5 * (0.65 + (dist / f.length) * 0.55); 
-                                
-                                const bounceVyRel = -hitPower * 0.95; 
-                                const bounceVxRel = 4 * f.side;
-                                ball.vx = bounceVxRel * Math.cos(f.angle) - bounceVyRel * Math.sin(f.angle);
-                                ball.vy = bounceVxRel * Math.sin(f.angle) + bounceVyRel * Math.cos(f.angle);
-                                playKeroSound(0.9); // ★フリッパー：少し低音で力強い音
-                            } else { 
-                                ball.vx *= 0.85; ball.vy *= 0.85;
-                            }
-                            const pushY = -(thicknessBound + 1);
-                            ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
-                            ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
-                        } else {
-                            ball.vy = Math.abs(ball.vy) + gravity * 3 + 1.5; 
-                            ball.vx += f.side * 1.0; 
-                            
-                            const pushY = (thicknessBound + 2);
-                            ball.x = f.x + (rx * Math.cos(f.angle) - pushY * Math.sin(f.angle));
-                            ball.y = f.y + (rx * Math.sin(f.angle) + pushY * Math.cos(f.angle));
-                        }
-                    }
-                }
-            });
-
-            // ミス判定
-            if (ball.y > canvas.height + 100) {
-                score = 0; scoreEl.innerText = `Score: ${score}`;
-                resetBall();
-                playKeroSound(0.65); // ★落下ミス：低音で悲しげな音
-            }
-            draw();
-            requestAnimationFrame(update);
-        }
-
-        const handleInput = (side, active) => {
-            enableSound(); 
-            if (side === 'left') leftFlipper.targetAngle = active ? -0.6 : 0.6;
-            if (side === 'right') rightFlipper.targetAngle = active ? 0.6 : -0.6;
-        };
-
-        window.addEventListener('keydown', e => {
-            enableSound(); 
-            if (e.code === 'Space') plunger.isCharging = true;
-            if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', true);
-            if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', true);
-        });
-        window.addEventListener('keyup', e => {
-            if (e.code === 'Space') plunger.isCharging = false;
-            if (e.code === 'ArrowLeft' || e.code === 'KeyZ') handleInput('left', false);
-            if (e.code === 'ArrowRight' || e.code === 'KeyM') handleInput('right', false);
-        });
-
-        canvas.addEventListener('touchstart', e => {
-            e.preventDefault(); 
-            enableSound(); 
-            const rect = canvas.getBoundingClientRect();
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const touch = e.changedTouches[i];
-                const tx = (touch.clientX - rect.left) * (canvas.width / rect.width);
-                if (tx > laneX - 40) plunger.isCharging = true;
-                else handleInput(touch.clientX < window.innerWidth / 2 ? 'left' : 'right', true);
-            }
-        }, {passive: false});
-
-        canvas.addEventListener('touchend', e => {
-            e.preventDefault();
-            plunger.isCharging = false;
-            handleInput('left', false); handleInput('right', false);
-        }, {passive: false});
-
-        resetBall();
-        update();
-    </script>
-</body>
-</html>
+                const rx = dx * cos - dy *
