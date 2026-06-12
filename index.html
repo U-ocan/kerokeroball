@@ -46,7 +46,7 @@
             scoreEl.innerText = `Score: ${score} | High: ${highscore} | Lives: ${lives}`;
         }
 
-        // 【軽量化】オーディオプール方式（cloneNodeによるメモリリーク・プチフリを防止）
+        // 【軽量化】オーディオプール方式
         const AUDIO_POOL_SIZE = 8;
         const sePool = [];
         let poolIndex = 0;
@@ -69,7 +69,6 @@
                 if (!muteStatus.bgm) {
                     bgm.play().catch(e => console.log("BGM play failed:", e));
                 }
-                // プールの全音源をブラウザの制約から解放
                 sePool.forEach(audio => {
                     audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {});
                 });
@@ -79,7 +78,6 @@
         function playKeroSound(rate = 1.0) {
             if (!soundEnabled || muteStatus.se) return;
             try {
-                // プール内のAudioインスタンスをローテーションで使い回す（新しく生成しない）
                 const sound = sePool[poolIndex];
                 sound.currentTime = 0;
                 sound.playbackRate = rate;    
@@ -98,9 +96,7 @@
             ctx.textAlign = "right";
             ctx.shadowColor = "rgba(0,0,0,0.3)";
             ctx.shadowBlur = 4;
-            // BGMアイコン表示
             ctx.fillText(muteStatus.bgm ? "🔇 BGM" : "🎵 BGM", 350, 40);
-            // SEアイコン表示
             ctx.fillText(muteStatus.se ? "🔇 SE" : "🔊 SE", 350, 68);
             ctx.restore();
         }
@@ -195,7 +191,6 @@
             ball.holeTimer = 0; ball.holeCooldown = 0;
         }
 
-        // 【軽量化】描画処理を独立（データ更新処理 update() と分離）
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
@@ -241,7 +236,7 @@
             }
             ctx.restore();
 
-            // バンパー（カエルの顔）の描画
+            // バンパー（カエルの顔）の描画 【復活＆修正】
             bumpers.forEach(b => {
                 ctx.save();
                 ctx.translate(b.x, b.y);
@@ -259,7 +254,7 @@
             // フリッパーの描画
             leftFlipper.draw(); rightFlipper.draw();
 
-            // 浮遊テキストの描画（描画関数内では描画のみ行う）
+            // 浮遊テキストの描画
             floatingTexts.forEach(t => { t.draw(); });
 
             // ボールの描画
@@ -267,7 +262,7 @@
             const drawRadius = ball.holeTimer > 0 ? ball.radius * 0.8 : ball.radius;
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath(); ctx.arc(0, 0, drawRadius, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; stroke();
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.stroke();
             ctx.fillStyle = '#708090'; ctx.beginPath(); ctx.arc(0, 0, drawRadius * 0.5, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
 
@@ -275,7 +270,6 @@
             drawMuteIcons();
         }
 
-        // 【軽量化】ロジック更新処理
         function update() {
             // プランジャーのチャージ・発射処理
             if (plunger.isCharging) {
@@ -403,8 +397,8 @@
                 const cosPrev = Math.cos(-f.prevAngle); const sinPrev = Math.sin(-f.prevAngle);
                 const rxPrev = dx * cosPrev - dy * sinPrev;
                 const rxOriented = rx * f.side;
-                const rxPrevOriented = rxPrev * f.side;
-                const isWithinLength = (rxOriented > -10 && rxOriented < f.length + 10) || (rxPrevOriented > -10 && rxPrevOriented < f.length + 10);
+                const rxPrevOriented = rxPrev * f.length; // 念のため元の正確な長さに調整
+                const isWithinLength = (rxOriented > -10 && rxOriented < f.length + 10);
                 if (isWithinLength) {
                     const isSwingingUp = (f.side === 1 && f.angularVelocity < -0.01) || (f.side === -1 && f.angularVelocity > 0.01);
                     let isHit = false; let isFrontHit = false;
@@ -439,11 +433,11 @@
                 }
             });
 
-            // 浮遊テキストのデータ更新と寿命の尽きたオブジェクトのフィルタリング
+            // 浮遊テキストのデータ更新
             floatingTexts.forEach(t => t.update());
             floatingTexts = floatingTexts.filter(t => t.life > 0);
 
-            // ボールが画面下に落ちた時の処理（ライフ減少・ハイスコア・リセット）
+            // ボールが画面下に落ちた時の処理
             if (ball.y > canvas.height + 100) {
                 lives--;
                 if (lives <= 0) {
@@ -460,10 +454,10 @@
             }
         }
 
-        // 【軽量化】ゲームメインループ（1つの管理されたループに集約）
+        // ゲームメインループ
         function tick() {
-            update(); // ロジック計算
-            draw();   // 描画
+            update(); 
+            draw();   
             requestAnimationFrame(tick);
         }
 
@@ -480,7 +474,7 @@
             if (e.code === 'ArrowRight' || e.code === 'KeyM') rightFlipper.targetAngle = -0.6;
         });
 
-        // スマホ・タッチ操作（ミュートボタン判定統合）
+        // スマホ・タッチ操作
         canvas.addEventListener('touchstart', e => {
             e.preventDefault(); 
             const rect = canvas.getBoundingClientRect();
@@ -488,16 +482,15 @@
                 const tx = (e.changedTouches[i].clientX - rect.left) * (canvas.width / rect.width);
                 const ty = (e.changedTouches[i].clientY - rect.top) * (canvas.height / rect.height);
                 
-                // 右上のミュートアイコン領域のタップ判定
                 if (tx > 260 && ty < 85) {
-                    enableSound(); // 音声有効化のトリガーを通す
+                    enableSound(); 
                     if (ty < 50) {
                         muteStatus.bgm = !muteStatus.bgm;
                         muteStatus.bgm ? bgm.pause() : bgm.play().catch(() => {});
                     } else {
                         muteStatus.se = !muteStatus.se;
                     }
-                    continue; // ミュートを触った指はゲームを動かさない
+                    continue; 
                 }
 
                 enableSound(); 
@@ -519,7 +512,7 @@
         // 初期化とループ開始
         updateUI();
         resetBall();
-        tick(); // ループをスタート
+        tick(); 
     </script>
 </body>
 </html>
