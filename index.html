@@ -46,9 +46,17 @@
             scoreEl.innerText = `Score: ${score} | High: ${highscore} | Lives: ${lives}`;
         }
 
-        // オーディオ設定
-        const keroAudio = new Audio('https://raw.githubusercontent.com/U-ocan/kerokeroball/main/kero.m4a');
-        keroAudio.preload = 'auto';
+        // 【軽量化】オーディオプール方式（cloneNodeによるメモリリーク・プチフリを防止）
+        const AUDIO_POOL_SIZE = 8;
+        const sePool = [];
+        let poolIndex = 0;
+        
+        for (let i = 0; i < AUDIO_POOL_SIZE; i++) {
+            const audio = new Audio('https://raw.githubusercontent.com/U-ocan/kerokeroball/main/kero.m4a');
+            audio.preload = 'auto';
+            sePool.push(audio);
+        }
+
         const bgm = new Audio('https://raw.githubusercontent.com/U-ocan/kerokeroball/main/kero_music64.mp3');
         bgm.loop = true;
         bgm.volume = 0.3; 
@@ -61,18 +69,25 @@
                 if (!muteStatus.bgm) {
                     bgm.play().catch(e => console.log("BGM play failed:", e));
                 }
-                keroAudio.play().then(() => { keroAudio.pause(); keroAudio.currentTime = 0; }).catch(() => {});
+                // プールの全音源をブラウザの制約から解放
+                sePool.forEach(audio => {
+                    audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {});
+                });
             }
         }
 
         function playKeroSound(rate = 1.0) {
             if (!soundEnabled || muteStatus.se) return;
             try {
-                const soundClone = keroAudio.cloneNode(true);
-                soundClone.playbackRate = rate;    
-                soundClone.preservesPitch = false; 
-                soundClone.volume = 0.5; 
-                soundClone.play().catch(() => {});
+                // プール内のAudioインスタンスをローテーションで使い回す（新しく生成しない）
+                const sound = sePool[poolIndex];
+                sound.currentTime = 0;
+                sound.playbackRate = rate;    
+                sound.preservesPitch = false; 
+                sound.volume = 0.5; 
+                sound.play().catch(() => {});
+                
+                poolIndex = (poolIndex + 1) % AUDIO_POOL_SIZE;
             } catch (e) {}
         }
 
@@ -180,15 +195,13 @@
             ball.holeTimer = 0; ball.holeCooldown = 0;
         }
 
+        // 【軽量化】描画処理を独立（データ更新処理 update() と分離）
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             // フィールド背景
             ctx.fillStyle = '#87ceeb';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.fillStyle = '#218c74';
-            ctx.beginPath(); ctx.ellipse(180, 655, 250, 60, 0, 0, Math.PI * 2); ctx.fill();
 
             // シューターレーンの壁
             ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 8; ctx.lineCap = 'round';
@@ -241,22 +254,20 @@
                     ctx.beginPath(); ctx.arc(0, 0, b.r, 0, Math.PI * 2); ctx.fill();
                 }
                 ctx.restore();
-                b.scale += (1.0 - b.scale) * 0.15;
             });
             
             // フリッパーの描画
             leftFlipper.draw(); rightFlipper.draw();
 
-            // 浮遊テキストの描画
-            floatingTexts = floatingTexts.filter(t => t.life > 0);
-            floatingTexts.forEach(t => { t.update(); t.draw(); });
+            // 浮遊テキストの描画（描画関数内では描画のみ行う）
+            floatingTexts.forEach(t => { t.draw(); });
 
             // ボールの描画
             ctx.save(); ctx.translate(ball.x, ball.y); 
             const drawRadius = ball.holeTimer > 0 ? ball.radius * 0.8 : ball.radius;
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath(); ctx.arc(0, 0, drawRadius, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; stroke();
             ctx.fillStyle = '#708090'; ctx.beginPath(); ctx.arc(0, 0, drawRadius * 0.5, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
 
@@ -264,6 +275,7 @@
             drawMuteIcons();
         }
 
+        // 【軽量化】ロジック更新処理
         function update() {
             // プランジャーのチャージ・発射処理
             if (plunger.isCharging) {
@@ -346,6 +358,11 @@
                     }
                 });
 
+                // バンパーのアニメーション補正値の更新
+                bumpers.forEach(b => {
+                    b.scale += (1.0 - b.scale) * 0.15;
+                });
+
                 // スリングショットとの衝突判定
                 const slings = [
                     {x1: 0, y1: slingTop, x2: slingWidth, y2: flipY, isLeft: true},
@@ -422,6 +439,10 @@
                 }
             });
 
+            // 浮遊テキストのデータ更新と寿命の尽きたオブジェクトのフィルタリング
+            floatingTexts.forEach(t => t.update());
+            floatingTexts = floatingTexts.filter(t => t.life > 0);
+
             // ボールが画面下に落ちた時の処理（ライフ減少・ハイスコア・リセット）
             if (ball.y > canvas.height + 100) {
                 lives--;
@@ -437,9 +458,13 @@
                 resetBall();
                 playKeroSound(0.65); 
             }
-            
-            draw();
-            requestAnimationFrame(update);
+        }
+
+        // 【軽量化】ゲームメインループ（1つの管理されたループに集約）
+        function tick() {
+            update(); // ロジック計算
+            draw();   // 描画
+            requestAnimationFrame(tick);
         }
 
         // キーボード操作
@@ -491,10 +516,10 @@
             rightFlipper.targetAngle = -0.6;
         }, {passive: false});
 
-        // 初期化
+        // 初期化とループ開始
         updateUI();
         resetBall();
-        update();
+        tick(); // ループをスタート
     </script>
 </body>
 </html>
