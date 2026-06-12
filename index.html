@@ -7,7 +7,16 @@
     <style>
         body { margin: 0; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
         canvas { background: #87ceeb; border: 4px solid #27ae60; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); max-width: 95vw; max-height: 85vh; touch-action: none; }
+        
+        /* 通常（iPhoneなど縦長の画面）のUI位置 */
         #ui { position: absolute; top: 20px; color: white; text-align: center; pointer-events: none; z-index: 10; width: 100%; }
+
+        /* iPadなどのアスペクト比（縦横比が約3:4、あるいは16:9より正方形に近い画面）向けの調整 */
+        @media (max-aspect-ratio: 13/16) {
+            #ui {
+                top: 55px; /* iPhoneの20pxから55pxに下げて、スコアが隠れないように調整 */
+            }
+        }
     </style>
 </head>
 <body>
