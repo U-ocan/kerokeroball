@@ -46,47 +46,108 @@
             scoreEl.innerText = `Score: ${score} | High: ${highscore} | Lives: ${lives}`;
         }
 
-        // 【軽量化】オーディオプール方式
-        const AUDIO_POOL_SIZE = 8;
-        const sePool = [];
-        let poolIndex = 0;
-        
-        for (let i = 0; i < AUDIO_POOL_SIZE; i++) {
-            const audio = new Audio('https://raw.githubusercontent.com/U-ocan/kerokeroball/main/kero.m4a');
-            audio.preload = 'auto';
-            sePool.push(audio);
-        }
-
-        const bgm = new Audio('https://raw.githubusercontent.com/U-ocan/kerokeroball/main/kero_music64.mp3');
-        bgm.loop = true;
-        bgm.volume = 0.3; 
+        // --- Web Audio API を用いた音声管理システム ---
+        let audioCtx = null;
+        let seBuffer = null;
+        let bgmBuffer = null;
+        let bgmSourceNode = null;
+        let bgmGainNode = null;
         let soundEnabled = false;
 
-        function enableSound() {
+        // 音声ファイルの非同期読み込み
+        async function loadSound(url) {
+            try {
+                const response = await fetch(url);
+                const arrayBuffer = await response.arrayBuffer();
+                // iOS互換性を高めるため、古いコールバック形式とPromise形式の両方に対応
+                return await new Promise((resolve, reject) => {
+                    audioCtx.decodeAudioData(arrayBuffer, resolve, reject);
+                });
+            } catch (e) {
+                console.error("Sound load error:", e);
+                return null;
+            }
+        }
+
+        // 初期タッチ時にAudioContextを生成・解放する
+        async function enableSound() {
             if (!soundEnabled) {
                 soundEnabled = true;
                 if (msgEl) msgEl.style.display = 'none';
+
+                // AudioContextの生成
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContextClass();
+
+                // 音声ファイルの並行ダウンロード開始
+                const sePromise = loadSound('https://raw.githubusercontent.com/U-ocan/kerokeroball/main/kero.m4a');
+                const bgmPromise = loadSound('https://raw.githubusercontent.com/U-ocan/kerokeroball/main/kero_music64.mp3');
+
+                // ダミーのバッファを再生してiOSの音声ロックを解除
+                const dummyBuffer = audioCtx.createBuffer(1, 1, 22050);
+                const dummySource = audioCtx.createBufferSource();
+                dummySource.buffer = dummyBuffer;
+                dummySource.connect(audioCtx.destination);
+                dummySource.start(0);
+
+                // データの格納とBGMの再生
+                seBuffer = await sePromise;
+                bgmBuffer = await bgmPromise;
+
                 if (!muteStatus.bgm) {
-                    bgm.play().catch(e => console.log("BGM play failed:", e));
+                    playBGM();
                 }
-                sePool.forEach(audio => {
-                    audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {});
-                });
+            } else if (audioCtx && audioCtx.state === 'suspended') {
+                // 中断されている場合は再開
+                await audioCtx.resume();
+            }
+        }
+
+        function playBGM() {
+            if (!audioCtx || !bgmBuffer || bgmSourceNode || muteStatus.bgm) return;
+
+            bgmSourceNode = audioCtx.createBufferSource();
+            bgmSourceNode.buffer = bgmBuffer;
+            bgmSourceNode.loop = true;
+
+            bgmGainNode = audioCtx.createGain();
+            bgmGainNode.gain.value = 0.3; // 音量調整
+
+            bgmSourceNode.connect(bgmGainNode);
+            bgmGainNode.connect(audioCtx.destination);
+            bgmSourceNode.start(0);
+        }
+
+        function stopBGM() {
+            if (bgmSourceNode) {
+                try {
+                    bgmSourceNode.stop();
+                } catch (e) {}
+                bgmSourceNode.disconnect();
+                bgmSourceNode = null;
+            }
+            if (bgmGainNode) {
+                bgmGainNode.disconnect();
+                bgmGainNode = null;
             }
         }
 
         function playKeroSound(rate = 1.0) {
-            if (!soundEnabled || muteStatus.se) return;
+            if (!soundEnabled || muteStatus.se || !audioCtx || !seBuffer) return;
             try {
-                const sound = sePool[poolIndex];
-                sound.currentTime = 0;
-                sound.playbackRate = rate;    
-                sound.preservesPitch = false; 
-                sound.volume = 0.5; 
-                sound.play().catch(() => {});
-                
-                poolIndex = (poolIndex + 1) % AUDIO_POOL_SIZE;
-            } catch (e) {}
+                const source = audioCtx.createBufferSource();
+                source.buffer = seBuffer;
+                source.playbackRate.value = rate;
+
+                const gainNode = audioCtx.createGain();
+                gainNode.gain.value = 0.5;
+
+                source.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                source.start(0);
+            } catch (e) {
+                console.error("SE play failed:", e);
+            }
         }
 
         function drawMuteIcons() {
@@ -236,7 +297,7 @@
             }
             ctx.restore();
 
-            // バンパー（カエルの顔）の描画 【復活＆修正】
+            // バンパー（カエルの顔）の描画
             bumpers.forEach(b => {
                 ctx.save();
                 ctx.translate(b.x, b.y);
@@ -262,7 +323,7 @@
             const drawRadius = ball.holeTimer > 0 ? ball.radius * 0.8 : ball.radius;
             ctx.fillStyle = '#FFFFFF';
             ctx.beginPath(); ctx.arc(0, 0, drawRadius, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.stroke(); 
             ctx.fillStyle = '#708090'; ctx.beginPath(); ctx.arc(0, 0, drawRadius * 0.5, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
 
@@ -397,7 +458,6 @@
                 const cosPrev = Math.cos(-f.prevAngle); const sinPrev = Math.sin(-f.prevAngle);
                 const rxPrev = dx * cosPrev - dy * sinPrev;
                 const rxOriented = rx * f.side;
-                const rxPrevOriented = rxPrev * f.length; // 念のため元の正確な長さに調整
                 const isWithinLength = (rxOriented > -10 && rxOriented < f.length + 10);
                 if (isWithinLength) {
                     const isSwingingUp = (f.side === 1 && f.angularVelocity < -0.01) || (f.side === -1 && f.angularVelocity > 0.01);
@@ -483,13 +543,14 @@
                 const ty = (e.changedTouches[i].clientY - rect.top) * (canvas.height / rect.height);
                 
                 if (tx > 260 && ty < 85) {
-                    enableSound(); 
-                    if (ty < 50) {
-                        muteStatus.bgm = !muteStatus.bgm;
-                        muteStatus.bgm ? bgm.pause() : bgm.play().catch(() => {});
-                    } else {
-                        muteStatus.se = !muteStatus.se;
-                    }
+                    enableSound().then(() => {
+                        if (ty < 50) {
+                            muteStatus.bgm = !muteStatus.bgm;
+                            muteStatus.bgm ? stopBGM() : playBGM();
+                        } else {
+                            muteStatus.se = !muteStatus.se;
+                        }
+                    });
                     continue; 
                 }
 
